@@ -10,7 +10,7 @@
 
 | Tool | What it does |
 | --- | --- |
-| 🎙️ **Voice Transcriber** | Live speech-to-text dictation with 7 languages, live word/char counts, copy & save as `.txt`. |
+| 🎙️ **Voice Transcriber** | Live speech-to-text dictation with 12 languages, live word/char counts, copy & save as `.txt`. |
 | ✂️ **Media Trimmer** | Trim audio & video with an interactive dual-handle timeline, playhead scrubbing and range preview. |
 | 📄 **PDF Tools** | 11 client-side PDF utilities (see below). |
 | 🖼️ **Image Compressor** | Compress & convert PNG / JPG / WebP with quality, format and dimension controls. |
@@ -28,6 +28,36 @@
 9. **Extract images** — pull embedded images out of a PDF (falls back to full-page renders).
 10. **Protect PDF** — AES encryption with granular print / copy / modify / annotate permissions.
 11. **Unlock PDF** — remove owner restrictions and verify the output is readable.
+
+---
+
+## 📈 Analytics & Ads
+
+### Vercel Web Analytics
+
+Added with the **framework-agnostic** approach, which is the correct one for a plain static HTML page:
+
+```html
+<script>
+  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+</script>
+<script defer src="/_vercel/insights/script.js"></script>
+```
+
+The Next.js import (`import { Analytics } from "@vercel/analytics/next"`) does **not** work in a static HTML file.
+
+> **To start collecting data:** deploy on Vercel, then open the project in the Vercel dashboard and enable **Web Analytics**. Vercel then serves `/_vercel/insights/script.js` automatically. Off Vercel that path simply 404s, which is harmless.
+
+### Adsterra
+
+Two ad units sit in labelled, non-intrusive slots:
+
+| Slot | Placement | Unit |
+| --- | --- | --- |
+| A | Below the header | 468×60 iframe banner |
+| B | After the tool content | Native banner container |
+
+Layout safety: each slot reserves its own space and is **hidden until it actually contains an ad**, so a blocked or unsold slot never leaves a blank hole in the page. The fixed-width 468×60 banner is also scaled down in place on narrow screens instead of overflowing the layout.
 
 ---
 
@@ -109,4 +139,13 @@ paper-cave/
 
 ## 🔐 Privacy
 
-Paper_cave has **no backend**. There is no analytics, no telemetry and no network call that carries your files anywhere. Everything you drop in is processed locally and discarded when you close the tab.
+Paper_cave has **no backend of its own** — your files are never uploaded. Everything you drop in is processed locally in browser memory and discarded when you close the tab.
+
+Two third-party services do load alongside the page, and **neither ever receives your files**:
+
+| Service | What it receives | Notes |
+| --- | --- | --- |
+| **Vercel Web Analytics** | Aggregate page views (URL, referrer, country, device) | Cookieless and privacy-focused; active only when the site is hosted on Vercel. |
+| **Adsterra** | Ad impressions and clicks through its own scripts and iframes | A third-party ad network that may set its own cookies. Ads appear only in the clearly-labelled slots. |
+
+**Your documents, audio, images and transcripts are never part of that traffic.**
