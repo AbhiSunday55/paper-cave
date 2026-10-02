@@ -1,0 +1,2631 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Paper_cave — a private, in-browser utility suite: voice transcription, media trimming, a complete PDF toolkit and image compression. Your files never leave your device.">
+  <meta name="theme-color" content="#070b16">
+  <meta name="color-scheme" content="dark">
+  <title>Paper_cave — Private In-Browser Tools</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { colors: {
+        brand: { 50:'#eef2ff',100:'#e0e7ff',400:'#818cf8',500:'#6366f1',600:'#4f46e5',700:'#4338ca',900:'#312e81' },
+        surface: { base:'#070b16', card:'#141c31', border:'#28324e', hover:'#1d2740' }
+      } } }
+    }
+  </script>
+  <style>
+    :root{
+      --bg:#070b16;
+      --bg-soft:#0c1222;
+      --card:rgba(20,28,49,.72);
+      --card-solid:#141c31;
+      --border:rgba(148,163,184,.14);
+      --border-strong:rgba(148,163,184,.28);
+      --text:#e9eefb;
+      --muted:#93a1bd;
+      --brand:#6366f1;
+      --brand-2:#8b5cf6;
+      --accent:#f59e0b;
+      --ok:#34d399;
+      --danger:#fb7185;
+    }
+    *{ -webkit-tap-highlight-color:transparent; }
+    html{ scroll-behavior:smooth; }
+    body{
+      font-family:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      min-height:100vh;
+      position:relative;
+      overflow-x:hidden;
+    }
+    /* ---------- Layered background ---------- */
+    .bg-aura{ position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+    .bg-aura::before{
+      content:''; position:absolute; inset:-10%;
+      background:
+        radial-gradient(1000px 560px at 12% -8%, rgba(99,102,241,.26), transparent 62%),
+        radial-gradient(820px 520px at 92% 2%, rgba(139,92,246,.20), transparent 64%),
+        radial-gradient(760px 560px at 58% 110%, rgba(245,158,11,.11), transparent 62%);
+    }
+    .orb{ position:absolute; border-radius:50%; filter:blur(80px); opacity:.5; animation:float 20s ease-in-out infinite; transition:transform .5s cubic-bezier(.22,1,.36,1); will-change:transform; }
+    .orb.a{ width:380px; height:380px; background:rgba(99,102,241,.36); top:-110px; left:-70px; }
+    .orb.b{ width:320px; height:320px; background:rgba(139,92,246,.30); top:18%; right:-90px; animation-delay:-6s; }
+    .orb.c{ width:280px; height:280px; background:rgba(245,158,11,.18); bottom:-90px; left:32%; animation-delay:-12s; }
+    @keyframes float{ 0%,100%{ transform:translate3d(0,0,0) scale(1);} 50%{ transform:translate3d(0,-30px,0) scale(1.07);} }
+    #bgCanvas{ position:fixed; inset:0; z-index:1; pointer-events:none; }
+    .app-shell{ position:relative; z-index:2; }
+
+    /* ---------- Glass surfaces ---------- */
+    .glass-panel{
+      background:var(--card);
+      backdrop-filter:blur(18px) saturate(150%);
+      -webkit-backdrop-filter:blur(18px) saturate(150%);
+      border:1px solid var(--border);
+      box-shadow:0 28px 70px -34px rgba(2,6,23,.95), inset 0 1px 0 rgba(255,255,255,.05);
+    }
+    .soft-card{ background:linear-gradient(180deg, rgba(30,41,66,.55), rgba(15,21,38,.55)); border:1px solid var(--border); }
+
+    /* ---------- Branding ---------- */
+    .brand-mark{ background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 55%,#f59e0b 135%); box-shadow:0 10px 30px -8px rgba(99,102,241,.7), inset 0 1px 0 rgba(255,255,255,.35); transition:transform .35s cubic-bezier(.34,1.56,.64,1); }
+    .brand-mark:hover{ transform:rotate(-6deg) scale(1.05); }
+    .brand-word{
+      font-family:'Sora',sans-serif;
+      background:linear-gradient(100deg,#ffffff 0%,#c7d2fe 45%,#fcd34d 130%);
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      letter-spacing:-.02em;
+    }
+
+    /* ---------- Nav ---------- */
+    .nav-btn{ position:relative; display:flex; align-items:center; gap:.75rem; width:100%; padding:.8rem .9rem; border-radius:14px; font-size:.875rem; font-weight:500; color:var(--muted); border:1px solid transparent; transition:all .22s cubic-bezier(.4,0,.2,1); text-align:left; }
+    .nav-btn i{ width:20px; text-align:center; font-size:1rem; transition:transform .22s ease; }
+    .nav-btn:hover{ color:#fff; background:rgba(99,102,241,.10); border-color:rgba(99,102,241,.22); }
+    .nav-btn:hover i{ transform:translateY(-1px) scale(1.08); }
+    .nav-btn.is-active{ color:#fff; background:linear-gradient(135deg, rgba(99,102,241,.95), rgba(139,92,246,.85)); border-color:rgba(255,255,255,.16); box-shadow:0 12px 28px -12px rgba(99,102,241,.9); }
+    .nav-btn.is-active::after{ content:''; position:absolute; left:-1px; top:22%; bottom:22%; width:3px; border-radius:3px; background:linear-gradient(180deg,#fcd34d,#f59e0b); }
+
+    /* ---------- Drop zones ---------- */
+    .drop-zone{ position:relative; overflow:hidden; border:1.5px dashed rgba(148,163,184,.35); border-radius:16px; transition:all .25s cubic-bezier(.4,0,.2,1); cursor:pointer; }
+    .drop-zone::after{ content:''; position:absolute; inset:0; opacity:0; transition:opacity .25s ease; background:radial-gradient(420px 220px at 50% 0%, rgba(99,102,241,.20), transparent 70%); pointer-events:none; }
+    .drop-zone:hover{ border-color:rgba(99,102,241,.6); background:rgba(99,102,241,.06); }
+    .drop-zone:hover::after{ opacity:1; }
+    .drop-zone.drag-active{ border-color:var(--brand); background:rgba(99,102,241,.15); transform:scale(1.008); box-shadow:0 0 0 4px rgba(99,102,241,.14); }
+    .drop-zone.drag-active::after{ opacity:1; }
+    .dz-icon{ transition:transform .3s cubic-bezier(.34,1.56,.64,1); }
+    .drop-zone:hover .dz-icon{ transform:translateY(-4px) scale(1.09); }
+    .dz-slim{ padding:1.35rem 1rem; text-align:center; }
+
+    /* ---------- Buttons ---------- */
+    .btn{ position:relative; overflow:hidden; display:inline-flex; align-items:center; justify-content:center; gap:.5rem; font-weight:600; border-radius:12px; transition:transform .18s cubic-bezier(.4,0,.2,1), filter .18s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease; cursor:pointer; border:1px solid transparent; }
+    .btn:active{ transform:translateY(1px) scale(.985); }
+    .btn:disabled{ opacity:.45; cursor:not-allowed; }
+    .btn-primary{ background:linear-gradient(135deg,#6366f1,#7c3aed); color:#fff; box-shadow:0 14px 30px -14px rgba(99,102,241,.95); }
+    .btn-primary:hover:not(:disabled){ filter:brightness(1.09); box-shadow:0 18px 38px -14px rgba(99,102,241,1); }
+    .btn-ghost{ background:rgba(30,41,66,.6); color:#cbd5e1; border-color:var(--border); }
+    .btn-ghost:hover:not(:disabled){ background:rgba(51,65,85,.72); color:#fff; border-color:var(--border-strong); }
+    .btn-danger-ghost{ background:rgba(251,113,133,.08); color:#fda4af; border-color:rgba(251,113,133,.28); }
+    .btn-danger-ghost:hover:not(:disabled){ background:rgba(251,113,133,.16); color:#fecdd3; }
+    .btn-emerald{ background:linear-gradient(135deg,#10b981,#059669); color:#fff; box-shadow:0 14px 30px -14px rgba(16,185,129,.9); }
+    .btn-emerald:hover:not(:disabled){ filter:brightness(1.09); }
+    .btn-rose{ background:linear-gradient(135deg,#f43f5e,#e11d48); color:#fff; box-shadow:0 14px 30px -14px rgba(244,63,94,.9); }
+    .btn-rose:hover:not(:disabled){ filter:brightness(1.09); }
+    .ripple{ position:absolute; border-radius:50%; transform:scale(0); background:rgba(255,255,255,.42); animation:rippleGo .62s ease-out forwards; pointer-events:none; }
+    @keyframes rippleGo{ to{ transform:scale(3.4); opacity:0; } }
+
+    /* ---------- Fields ---------- */
+    .field{ width:100%; background:rgba(9,13,26,.8); border:1px solid var(--border); color:var(--text); border-radius:12px; padding:.62rem .8rem; font-size:.8rem; transition:border-color .2s ease, box-shadow .2s ease; }
+    .field:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 3px rgba(99,102,241,.22); }
+    select.field{ appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2393a1bd' stroke-width='3'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right .7rem center; padding-right:2rem; }
+    .lbl{ display:block; font-size:.7rem; font-weight:600; color:var(--muted); margin-bottom:.4rem; }
+    input[type=range]{ -webkit-appearance:none; appearance:none; width:100%; height:6px; border-radius:999px; background:linear-gradient(90deg,#6366f1 var(--pct,60%), rgba(148,163,184,.25) var(--pct,60%)); cursor:pointer; }
+    input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:#fff; border:3px solid #6366f1; box-shadow:0 4px 12px rgba(99,102,241,.6); transition:transform .15s ease; }
+    input[type=range]::-webkit-slider-thumb:hover{ transform:scale(1.12); }
+    input[type=range]::-moz-range-thumb{ width:16px; height:16px; border-radius:50%; background:#fff; border:3px solid #6366f1; }
+    input[type=checkbox]{ accent-color:#6366f1; width:16px; height:16px; }
+    .check{ display:flex; align-items:center; gap:.5rem; font-size:.75rem; color:#cbd5e1; cursor:pointer; user-select:none; }
+
+    /* ---------- Segmented control ---------- */
+    .seg{ display:inline-flex; padding:4px; gap:4px; background:rgba(9,13,26,.72); border:1px solid var(--border); border-radius:14px; }
+    .seg button{ padding:.42rem .85rem; border-radius:10px; font-size:.72rem; font-weight:600; color:var(--muted); transition:all .2s ease; white-space:nowrap; }
+    .seg button:hover{ color:#fff; }
+    .seg button.is-active{ background:linear-gradient(135deg,#6366f1,#7c3aed); color:#fff; box-shadow:0 8px 20px -10px rgba(99,102,241,.9); }
+
+    /* ---------- Chips / pills ---------- */
+    .pill{ display:inline-flex; align-items:center; gap:.5rem; padding:.4rem .8rem; border-radius:999px; font-size:.72rem; font-weight:600; border:1px solid var(--border); background:rgba(9,13,26,.6); color:var(--muted); }
+    .dot{ width:8px; height:8px; border-radius:50%; background:#64748b; flex:none; }
+    .dot.live{ background:var(--ok); box-shadow:0 0 0 0 rgba(52,211,153,.6); animation:ping 1.8s infinite; }
+    @keyframes ping{ 0%{ box-shadow:0 0 0 0 rgba(52,211,153,.55);} 70%{ box-shadow:0 0 0 9px rgba(52,211,153,0);} 100%{ box-shadow:0 0 0 0 rgba(52,211,153,0);} }
+    .recording-pulse{ animation:pulse-ring 1.5s infinite; }
+    @keyframes pulse-ring{ 0%{ box-shadow:0 0 0 0 rgba(244,63,94,.55);} 70%{ box-shadow:0 0 0 14px rgba(244,63,94,0);} 100%{ box-shadow:0 0 0 0 rgba(244,63,94,0);} }
+
+    /* ---------- File chip / list ---------- */
+    .file-chip{ display:flex; align-items:center; gap:.6rem; padding:.65rem .8rem; border-radius:14px; border:1px solid rgba(99,102,241,.32); background:linear-gradient(120deg, rgba(99,102,241,.14), rgba(20,28,49,.6)); font-size:.75rem; color:#e2e8f7; }
+    .file-chip .fc-name{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+    .file-chip .fc-meta{ color:var(--muted); font-size:.68rem; white-space:nowrap; }
+    .file-chip .fc-x{ color:#94a3b8; padding:.25rem .4rem; border-radius:8px; transition:all .18s ease; }
+    .file-chip .fc-x:hover{ color:#fda4af; background:rgba(251,113,133,.14); }
+    .file-row{ display:flex; align-items:center; gap:.6rem; padding:.6rem .75rem; border-radius:12px; border:1px solid var(--border); background:rgba(9,13,26,.62); font-size:.74rem; color:#dbe3f4; }
+    .file-row .fr-idx{ font-family:ui-monospace,Menlo,monospace; color:#64748b; font-size:.68rem; }
+    .file-row .fr-name{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .file-row .fr-size{ color:#64748b; font-size:.66rem; white-space:nowrap; }
+    .file-row .fr-actions{ display:flex; align-items:center; gap:.15rem; }
+    .ic-btn{ padding:.32rem .45rem; border-radius:8px; color:#94a3b8; transition:all .16s ease; }
+    .ic-btn:hover:not(:disabled){ color:#a5b4fc; background:rgba(99,102,241,.14); }
+    .ic-btn.danger:hover:not(:disabled){ color:#fda4af; background:rgba(251,113,133,.14); }
+    .ic-btn:disabled{ opacity:.28; cursor:not-allowed; }
+
+    /* ---------- PDF tool grid ---------- */
+    .pdf-tool-card{ position:relative; overflow:hidden; display:flex; flex-direction:column; align-items:flex-start; gap:.45rem; padding:.8rem; border-radius:16px; border:1px solid var(--border); background:linear-gradient(160deg, rgba(30,41,66,.5), rgba(13,19,34,.5)); text-align:left; transition:transform .22s cubic-bezier(.4,0,.2,1), border-color .22s ease, background .22s ease, box-shadow .22s ease; }
+    .pdf-tool-card .ptc-ico{ width:34px; height:34px; display:grid; place-items:center; border-radius:11px; background:rgba(99,102,241,.14); color:#a5b4fc; font-size:.9rem; transition:transform .3s cubic-bezier(.34,1.56,.64,1); }
+    .pdf-tool-card .ptc-name{ font-size:.76rem; font-weight:700; color:#e9eefb; line-height:1.15; }
+    .pdf-tool-card .ptc-desc{ font-size:.64rem; color:var(--muted); line-height:1.3; }
+    .pdf-tool-card:hover{ transform:translateY(-3px); border-color:var(--border-strong); background:linear-gradient(160deg, rgba(99,102,241,.13), rgba(20,28,49,.65)); }
+    .pdf-tool-card:hover .ptc-ico{ transform:scale(1.12) rotate(-5deg); }
+    .pdf-tool-card.is-active{ border-color:rgba(99,102,241,.68); background:linear-gradient(160deg, rgba(99,102,241,.22), rgba(124,58,237,.13)); box-shadow:0 16px 34px -20px rgba(99,102,241,.95); }
+    .pdf-tool-card.is-active .ptc-ico{ background:rgba(255,255,255,.14); color:#fff; }
+
+    .panel-head{ display:flex; align-items:flex-start; gap:.85rem; padding-bottom:1rem; margin-bottom:1.15rem; border-bottom:1px solid var(--border); }
+    .panel-head .ph-icon{ width:42px; height:42px; flex:none; display:grid; place-items:center; border-radius:14px; background:rgba(99,102,241,.13); color:#a5b4fc; font-size:1.05rem; }
+    .panel-head h4{ font-size:.95rem; font-weight:700; color:#fff; line-height:1.2; }
+    .panel-head p{ font-size:.72rem; color:var(--muted); margin-top:.25rem; line-height:1.45; }
+
+    /* ---------- Timeline ---------- */
+    .trim-timeline{ position:relative; height:66px; border-radius:14px; background:rgba(9,13,26,.78); border:1px solid var(--border); cursor:pointer; touch-action:none; user-select:none; overflow:hidden; }
+    .tl-grid{ position:absolute; inset:0; opacity:.5; background-image:linear-gradient(90deg, rgba(148,163,184,.10) 1px, transparent 1px); background-size:5% 100%; }
+    .tl-dim{ position:absolute; top:0; bottom:0; background:rgba(3,7,18,.62); pointer-events:none; }
+    .tl-selection{ position:absolute; top:5px; bottom:5px; border-radius:11px; background:linear-gradient(180deg, rgba(99,102,241,.38), rgba(139,92,246,.22)); border:1px solid rgba(99,102,241,.62); box-shadow:inset 0 0 26px rgba(99,102,241,.28); pointer-events:none; }
+    .tl-handle{ position:absolute; top:50%; transform:translate(-50%,-50%); width:20px; height:46px; border-radius:8px; background:linear-gradient(180deg,#ffffff,#dbeafe); border:2px solid #6366f1; box-shadow:0 10px 22px -8px rgba(99,102,241,.95); cursor:ew-resize; display:grid; place-items:center; touch-action:none; z-index:4; transition:box-shadow .18s ease, filter .18s ease; }
+    .tl-handle::before{ content:''; width:2px; height:16px; border-radius:2px; background:rgba(99,102,241,.7); }
+    .tl-handle:hover{ filter:brightness(1.06); box-shadow:0 12px 26px -8px rgba(99,102,241,1); }
+    .tl-handle.is-dragging{ box-shadow:0 0 0 6px rgba(99,102,241,.28); }
+    .tl-handle:focus-visible{ outline:none; box-shadow:0 0 0 4px rgba(99,102,241,.4); }
+    .tl-playhead{ position:absolute; top:0; bottom:0; width:2px; background:linear-gradient(180deg,#fcd34d,#f59e0b); box-shadow:0 0 12px rgba(245,158,11,.85); pointer-events:none; z-index:5; }
+    .tl-playhead::after{ content:''; position:absolute; top:-3px; left:50%; transform:translateX(-50%); width:9px; height:9px; border-radius:50%; background:#fcd34d; }
+    body.is-trimming{ cursor:ew-resize; }
+    body.is-trimming *{ user-select:none !important; }
+
+    /* ---------- Organize thumbnails ---------- */
+    .thumb-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(122px,1fr)); gap:.7rem; max-height:430px; overflow-y:auto; padding:.15rem; }
+    .thumb-card{ position:relative; border-radius:14px; border:1px solid var(--border); background:rgba(9,13,26,.6); padding:.4rem; transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+    .thumb-card:hover{ border-color:rgba(99,102,241,.5); transform:translateY(-2px); }
+    .thumb-card.is-dragging{ opacity:.4; }
+    .thumb-card.drop-target{ border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.25); }
+    .thumb-card .tc-canvas-wrap{ background:#fff; border-radius:9px; overflow:hidden; display:grid; place-items:center; min-height:96px; }
+    .thumb-card canvas{ max-width:100%; display:block; transition:transform .3s cubic-bezier(.22,1,.36,1); }
+    .thumb-card .tc-num{ position:absolute; top:.5rem; left:.5rem; font-size:.6rem; font-weight:700; padding:.1rem .4rem; border-radius:999px; background:rgba(3,7,18,.82); color:#c7d2fe; border:1px solid rgba(148,163,184,.28); }
+    .thumb-card .tc-tools{ display:flex; align-items:center; justify-content:center; gap:.1rem; margin-top:.35rem; }
+    .thumb-card.is-deleted{ opacity:.42; }
+    .thumb-card.is-deleted::after{ content:''; position:absolute; inset:.4rem; background:repeating-linear-gradient(45deg, rgba(251,113,133,.10), rgba(251,113,133,.10) 6px, transparent 6px, transparent 12px); border-radius:9px; pointer-events:none; }
+
+    /* ---------- Work indicator ---------- */
+    .work-status{ position:fixed; left:1.1rem; bottom:1.1rem; z-index:60; display:flex; align-items:center; gap:.7rem; padding:.7rem 1rem; border-radius:14px; font-size:.75rem; font-weight:600; color:#e2e8f7; background:rgba(20,28,49,.96); border:1px solid rgba(99,102,241,.4); box-shadow:0 22px 48px -22px rgba(2,6,23,.98); backdrop-filter:blur(12px); }
+    .ws-spinner{ width:15px; height:15px; border-radius:50%; border:2px solid rgba(148,163,184,.3); border-top-color:#818cf8; animation:spin .75s linear infinite; flex:none; }
+    @keyframes spin{ to{ transform:rotate(360deg); } }
+
+    /* ---------- Misc ---------- */
+    .tool-enter{ animation:toolIn .4s cubic-bezier(.22,1,.36,1) both; }
+    @keyframes toolIn{ from{ opacity:0; transform:translateY(12px); } to{ opacity:1; transform:translateY(0); } }
+    ::-webkit-scrollbar{ width:8px; height:8px; }
+    ::-webkit-scrollbar-track{ background:transparent; }
+    ::-webkit-scrollbar-thumb{ background:rgba(148,163,184,.28); border-radius:8px; }
+    ::-webkit-scrollbar-thumb:hover{ background:rgba(148,163,184,.45); }
+    .toast{ display:flex; align-items:center; gap:.7rem; padding:.8rem 1rem; border-radius:14px; font-size:.8rem; font-weight:500; border:1px solid var(--border); background:rgba(20,28,49,.97); backdrop-filter:blur(12px); box-shadow:0 22px 48px -22px rgba(2,6,23,.98); transform:translateY(12px) scale(.97); opacity:0; transition:all .3s cubic-bezier(.22,1,.36,1); max-width:min(92vw,400px); }
+    .toast.show{ transform:translateY(0) scale(1); opacity:1; }
+    .toast.info{ border-left:3px solid var(--brand); }
+    .toast.success{ border-left:3px solid var(--ok); }
+    .toast.error{ border-left:3px solid var(--danger); }
+    .stat-tile{ background:rgba(9,13,26,.62); border:1px solid var(--border); border-radius:14px; padding:.7rem .5rem; text-align:center; transition:border-color .2s ease, transform .2s ease; }
+    .stat-tile:hover{ border-color:var(--border-strong); transform:translateY(-2px); }
+    .kbd{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.66rem; padding:.1rem .38rem; border-radius:6px; background:rgba(148,163,184,.14); border:1px solid var(--border); color:#cbd5e1; }
+    .hint{ font-size:.68rem; color:#7d8bab; line-height:1.5; }
+    .fx-off .orb{ animation:none; }
+    .fx-off #bgCanvas{ display:none; }
+
+    @media (max-width:1023px){
+      .nav-scroll{ display:flex; gap:.5rem; overflow-x:auto; padding-bottom:.25rem; }
+      .nav-scroll .nav-btn{ width:auto; white-space:nowrap; flex:0 0 auto; }
+      .nav-btn.is-active::after{ display:none; }
+    }
+    @media (prefers-reduced-motion:reduce){
+      .orb{ animation:none; }
+      #bgCanvas{ display:none; }
+      *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+    }
+  </style>
+</head>
+<body class="selection:bg-brand-500 selection:text-white">
+  <!-- Interactive background layers -->
+  <div class="bg-aura" id="bgAura" aria-hidden="true">
+    <span class="orb a" data-depth="26"></span>
+    <span class="orb b" data-depth="44"></span>
+    <span class="orb c" data-depth="18"></span>
+  </div>
+  <canvas id="bgCanvas" aria-hidden="true"></canvas>
+
+  <div class="app-shell min-h-screen flex flex-col lg:flex-row">
+    <!-- =================== SIDEBAR =================== -->
+    <aside class="w-full lg:w-[272px] flex-shrink-0 lg:min-h-screen flex flex-col justify-between z-20 border-b lg:border-b-0 lg:border-r border-surface-border bg-surface-card/70 backdrop-blur-xl">
+      <div>
+        <div class="p-5 flex items-center gap-3 border-b border-surface-border">
+          <div class="brand-mark p-2.5 rounded-2xl">
+            <i class="fa-solid fa-feather-pointed text-white text-lg"></i>
+          </div>
+          <div class="min-w-0">
+            <h1 class="brand-word font-extrabold text-xl leading-none truncate">Paper_cave</h1>
+            <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-[.16em]">Private Utility Suite</span>
+          </div>
+        </div>
+
+        <nav class="p-3 lg:space-y-1.5 nav-scroll" id="sidebarNav" aria-label="Tool navigation">
+          <button onclick="switchTab('voice')" id="nav-voice" class="nav-btn is-active" aria-label="Voice Transcriber">
+            <i class="fa-solid fa-microphone"></i><span>Voice Transcriber</span>
+          </button>
+          <button onclick="switchTab('media')" id="nav-media" class="nav-btn" aria-label="Media Trimmer">
+            <i class="fa-solid fa-scissors"></i><span>Media Trimmer</span>
+          </button>
+          <button onclick="switchTab('pdf')" id="nav-pdf" class="nav-btn" aria-label="PDF Toolkit">
+            <i class="fa-solid fa-file-pdf"></i><span>PDF Toolkit</span>
+          </button>
+          <button onclick="switchTab('image')" id="nav-image" class="nav-btn" aria-label="Image Compressor">
+            <i class="fa-solid fa-image"></i><span>Image Compressor</span>
+          </button>
+        </nav>
+      </div>
+
+      <div class="p-4 border-t border-surface-border hidden lg:block space-y-3">
+        <div class="rounded-2xl p-3.5 text-xs flex items-start gap-3" style="background:linear-gradient(135deg, rgba(16,185,129,.12), rgba(16,185,129,.04)); border:1px solid rgba(16,185,129,.28);">
+          <i class="fa-solid fa-shield-halved text-emerald-400 text-base mt-0.5"></i>
+          <div>
+            <div class="font-semibold text-emerald-300">100% Private Engine</div>
+            <div class="text-[11px] text-emerald-400/80 leading-snug mt-0.5">Files are processed locally in your browser. Nothing is ever uploaded.</div>
+          </div>
+        </div>
+        <button id="fxToggle" onclick="toggleFx()" class="w-full text-left rounded-2xl p-3 flex items-center gap-3 text-[11px] text-slate-400 border border-surface-border hover:border-brand-500/40 hover:text-slate-200 transition-all" aria-pressed="true">
+          <i class="fa-solid fa-wand-magic-sparkles text-brand-400" id="fxToggleIcon"></i>
+          <span id="fxToggleText">Ambient effects: on</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- =================== MAIN =================== -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <header class="sticky top-0 z-10 bg-surface-base/72 backdrop-blur-xl border-b border-surface-border px-5 sm:px-7 py-4 flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <h2 id="currentToolTitle" class="text-lg sm:text-xl font-bold text-white truncate">Voice Transcriber</h2>
+          <p id="currentToolSubtitle" class="text-[11px] sm:text-xs text-slate-400 truncate">Dictate notes and meetings with your browser's speech engine.</p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <span class="pill hidden sm:inline-flex"><span class="dot live"></span> Local Only</span>
+          <span class="pill"><i class="fa-solid fa-lock text-emerald-400"></i> Private</span>
+        </div>
+      </header>
+
+      <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <!-- ============ VOICE ============ -->
+        <section id="tool-voice" class="tool-content tool-enter space-y-6">
+          <div class="glass-panel rounded-[22px] p-5 sm:p-7">
+            <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+              <div>
+                <h3 class="text-lg font-bold text-white flex items-center gap-2.5">
+                  <span class="inline-flex p-2 rounded-xl bg-emerald-500/12 text-emerald-400"><i class="fa-solid fa-microphone"></i></span>
+                  Voice-to-Text Transcriber
+                </h3>
+                <p class="text-xs text-slate-400 mt-1.5">Live dictation with the browser's built-in speech engine — continuous recognition, auto-restart, and editable output.</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <div id="voiceTimer" class="pill hidden"><i class="fa-regular fa-clock"></i><span id="voiceTimerText">00:00</span></div>
+                <div id="voiceStatusPill" class="pill"><span class="dot"></span><span id="voiceStatusText">Microphone idle</span></div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-3 soft-card p-3.5 rounded-2xl mb-4">
+              <div class="flex items-center gap-3 flex-1 min-w-[220px]">
+                <button id="startVoiceBtn" class="btn btn-emerald px-5 py-2.5 text-xs">
+                  <i class="fa-solid fa-microphone" id="voiceBtnIcon"></i><span id="startVoiceText">Start transcribing</span>
+                </button>
+                <select id="voiceLangSelect" class="field max-w-[190px]" aria-label="Recognition language">
+                  <option value="en-US">English (US)</option>
+                  <option value="en-GB">English (UK)</option>
+                  <option value="en-IN">English (India)</option>
+                  <option value="es-ES">Spanish (ES)</option>
+                  <option value="fr-FR">French (FR)</option>
+                  <option value="de-DE">German (DE)</option>
+                  <option value="it-IT">Italian (IT)</option>
+                  <option value="pt-BR">Portuguese (BR)</option>
+                  <option value="hi-IN">Hindi (IN)</option>
+                  <option value="ja-JP">Japanese</option>
+                  <option value="zh-CN">Chinese (Mandarin)</option>
+                  <option value="ar-SA">Arabic</option>
+                </select>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="copyTranscript()" class="btn btn-ghost px-3 py-2 text-xs"><i class="fa-solid fa-copy"></i><span>Copy</span></button>
+                <button onclick="downloadTranscript()" class="btn btn-ghost px-3 py-2 text-xs"><i class="fa-solid fa-download"></i><span>Save TXT</span></button>
+                <button onclick="clearTranscript()" class="btn btn-danger-ghost px-3 py-2 text-xs"><i class="fa-solid fa-eraser"></i><span>Clear</span></button>
+              </div>
+            </div>
+
+            <div id="speechAlert" class="hidden mb-4 p-3.5 rounded-2xl text-xs flex items-start gap-2.5" role="alert" style="background:rgba(251,113,133,.10); border:1px solid rgba(251,113,133,.30); color:#fda4af;">
+              <i class="fa-solid fa-triangle-exclamation text-base shrink-0 mt-0.5"></i>
+              <span id="speechAlertText">Speech recognition is unavailable.</span>
+            </div>
+
+            <div class="relative">
+              <textarea id="transcriptTextarea" placeholder="Press “Start transcribing” and speak clearly into your microphone…" class="field h-72 resize-none leading-relaxed text-sm p-4" aria-label="Transcript"></textarea>
+              <div class="absolute bottom-3 right-4 text-[11px] text-slate-400 flex gap-4 bg-surface-base/85 px-2.5 py-1 rounded-lg border border-surface-border backdrop-blur">
+                <span>Words: <strong id="wordCount" class="text-slate-200">0</strong></span>
+                <span>Chars: <strong id="charCount" class="text-slate-200">0</strong></span>
+              </div>
+            </div>
+
+            <details class="mt-4 rounded-2xl border border-surface-border bg-surface-base/40 p-3.5">
+              <summary class="text-xs font-semibold text-slate-300 cursor-pointer select-none">Microphone not working? Read this</summary>
+              <ul class="mt-2.5 space-y-1.5 text-[11px] text-slate-400 leading-relaxed list-disc pl-4">
+                <li>Allow microphone access when your browser asks — check the mic / lock icon in the address bar if you dismissed it.</li>
+                <li>If Paper_cave is embedded in a frame, the frame may block the microphone. Open the tool in its own browser tab and try again.</li>
+                <li>Chrome, Edge and Safari support live dictation; Firefox currently does not. The button will tell you if your browser is unsupported.</li>
+                <li>Your browser's speech engine may use a vendor cloud service for recognition. Audio files you drop into the other tools are never uploaded — only live dictation uses that engine.</li>
+                <li>Windows/Chrome: set a default input device and check that it is not muted in the system sound settings.</li>
+              </ul>
+            </details>
+          </div>
+        </section>
+
+        <!-- ============ MEDIA ============ -->
+        <section id="tool-media" class="tool-content hidden space-y-6">
+          <div class="glass-panel rounded-[22px] p-5 sm:p-7">
+            <div class="mb-6">
+              <h3 class="text-lg font-bold text-white flex items-center gap-2.5">
+                <span class="inline-flex p-2 rounded-xl bg-purple-500/12 text-purple-400"><i class="fa-solid fa-scissors"></i></span>
+                Audio / Video Trimmer
+              </h3>
+              <p class="text-xs text-slate-400 mt-1.5">Drag the handles on the timeline to pick your cut, preview it, then export — all locally, no upload.</p>
+            </div>
+
+            <div id="mediaDropZone" class="drop-zone p-8 sm:p-10 text-center bg-surface-base/50" role="button" tabindex="0" aria-label="Upload a media file">
+              <input type="file" accept="audio/*,video/*" class="hidden">
+              <div class="dz-icon inline-flex p-4 rounded-2xl bg-purple-500/12 text-purple-400 mb-3"><i class="fa-solid fa-film text-3xl"></i></div>
+              <p class="text-slate-100 font-semibold text-sm">Click to upload or drag &amp; drop video / audio here</p>
+              <p class="text-slate-500 text-xs mt-1.5">Supports MP4, WebM, MOV, MP3, WAV, M4A, OGG</p>
+            </div>
+
+            <div id="mediaWorkplace" class="hidden mt-6 space-y-5">
+              <div class="bg-black/70 rounded-2xl overflow-hidden border border-surface-border flex items-center justify-center min-h-[220px] relative">
+                <video id="videoPreview" class="max-h-96 w-full hidden" controls playsinline></video>
+                <audio id="audioPreview" class="w-full px-6 py-4 hidden" controls></audio>
+              </div>
+
+              <div class="soft-card p-5 rounded-2xl space-y-4">
+                <div class="flex items-center justify-between gap-3 flex-wrap">
+                  <div class="text-[11px] font-semibold text-slate-300 flex items-center gap-2">
+                    <i class="fa-solid fa-timeline text-brand-400"></i> Trim range
+                    <span class="text-slate-500 font-normal" id="mediaFileName"></span>
+                  </div>
+                  <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                    <span>Playhead <strong id="tlCurrentLabel" class="text-amber-300">0.0s</strong></span>
+                    <span class="text-slate-600">|</span>
+                    <span>Duration <strong id="totalMediaDuration" class="text-slate-200">0.0s</strong></span>
+                  </div>
+                </div>
+
+                <div id="trimTimeline" class="trim-timeline" aria-label="Trim selection timeline">
+                  <div class="tl-grid"></div>
+                  <div class="tl-dim" id="tlDimLeft"></div>
+                  <div class="tl-dim" id="tlDimRight"></div>
+                  <div class="tl-selection" id="trimSelection"></div>
+                  <div class="tl-playhead" id="trimPlayhead" style="left:0%"></div>
+                  <div class="tl-handle" id="trimHandleStart" style="left:0%" tabindex="0" role="slider" aria-label="Trim start" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"></div>
+                  <div class="tl-handle" id="trimHandleEnd" style="left:50%" tabindex="0" role="slider" aria-label="Trim end" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"></div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="lbl" for="startTimeInput">Start (seconds)</label>
+                    <div class="flex items-center gap-2">
+                      <input type="number" id="startTimeInput" step="0.1" min="0" value="0" class="field">
+                      <button class="btn btn-ghost px-3 py-2.5 text-[11px] whitespace-nowrap" id="setStartBtn" title="Use the current playhead position">From playhead</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="lbl" for="endTimeInput">End (seconds)</label>
+                    <div class="flex items-center gap-2">
+                      <input type="number" id="endTimeInput" step="0.1" min="0" value="10" class="field">
+                      <button class="btn btn-ghost px-3 py-2.5 text-[11px] whitespace-nowrap" id="setEndBtn" title="Use the current playhead position">From playhead</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-3 border-t border-surface-border pt-4">
+                  <div class="text-xs text-slate-400">Selected clip: <strong id="selectedClipDuration" class="text-brand-400">0.0s</strong></div>
+                  <div class="flex items-center gap-2">
+                    <button id="previewSelectionBtn" class="btn btn-ghost px-3.5 py-2.5 text-[11px]"><i class="fa-solid fa-play"></i> Preview selection</button>
+                    <button id="selectAllBtn" class="btn btn-ghost px-3.5 py-2.5 text-[11px]"><i class="fa-solid fa-arrows-left-right-to-line"></i> Select all</button>
+                  </div>
+                </div>
+
+                <button id="trimActionBtn" class="btn btn-primary w-full py-3 text-xs"><i class="fa-solid fa-scissors"></i><span>Trim &amp; export clip</span></button>
+                <p class="hint"><i class="fa-solid fa-circle-info mr-1"></i>Audio exports as WAV (lossless). Video clips are re-recorded in real time as WebM, so a 30-second cut takes about 30 seconds.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ PDF ============ -->
+        <section id="tool-pdf" class="tool-content hidden space-y-6">
+          <div class="glass-panel rounded-[22px] p-5 sm:p-7">
+            <div class="mb-5">
+              <h3 class="text-lg font-bold text-white flex items-center gap-2.5">
+                <span class="inline-flex p-2 rounded-xl bg-red-500/12 text-red-400"><i class="fa-solid fa-file-pdf"></i></span>
+                PDF Toolkit
+              </h3>
+              <p class="text-xs text-slate-400 mt-1.5">Eleven tools — merge, split, organise, number, watermark, compress, convert and protect. Everything runs in your browser.</p>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5 mb-6" id="pdfToolGrid">
+              <button class="pdf-tool-card is-active" data-pdf-tool="merge" onclick="switchPdfTool('merge')">
+                <span class="ptc-ico"><i class="fa-solid fa-object-group"></i></span>
+                <span class="ptc-name">Merge PDF</span><span class="ptc-desc">Combine files in any order</span>
+              </button>
+              <button class="pdf-tool-card" data-pdf-tool="split" onclick="switchPdfTool('split')">
+                <span class="ptc-ico"><i class="fa-solid fa-scissors"></i></span>
+                <span class="ptc-name">Split PDF</span><span class="ptc-desc">Extract pages or split into files</span>
+              </button>
+              <button class="pdf-tool-card" data-pdf-tool="organize" onclick="switchPdfTool('organize')">
+                <span class="ptc-ico"><i class="fa-solid fa-table-cells-large"></i></span>
+                <span class="ptc-name">Organise pages</span><span class="ptc-desc">Rotate, delete, reorder</span>
+              </button>
+              <button class="pdf-tool-card" data-pdf-tool="numbers" onclick="switchPdfTool('numbers')">
+                <span class="ptc-ico"><i class="fa-solid fa-list-ol"></i></span>
+                <span class="ptc-name">Page numbers</span><span class="ptc-desc">Stamp numbering</span>
+              </button>
+              <button class="pdf-tool-card" data-pdf-tool="watermark" onclick="switchPdfTool('watermark')">
+                <span class="ptc-ico"><i class="fa-solid fa-droplet"></i></span>
+                <span class="ptc-name">Watermark</span><span class="ptc-desc">Add text stamps</span>
+              </button>
+              <button class="pdf-tool-card" data-pdf-tool="compress" onclick="switchPdfTool('compress')">
+                <span class="ptc-ico"><i class="fa-solid fa-compress"></i></span>
+                <span class="ptc-name">Compress PDF</span><span class="ptc-desc">Shrink file size</span>
+              </button>
+              <button class="pdf-tool-card" data-pdf-tool="tojpg" onclick="switchPdfTool('tojpg')">
+                <span class="ptc-ico"><i class="fa-solid fa-images"></i></span>
+                <span class="ptc-name">PDF → JPG</span><span class="ptc-desc">Export pages as images</span>
+              </button>
+              <button class="pdf-tool-card" data-pdf-tool="fromimg" onclick="switchPdfTool('fromimg')">
+                <span class="ptc-ico"><i class="fa-solid fa-file-image"></i></span>
+                <span class="ptc-name">JPG → PDF</span><span class="ptc-desc">Build a PDF from images</span>
+              </button>
+              <button class="pdf-tool-card" data-pdf-tool="extract" onclick="switchPdfTool('extract')">
+                <span class="ptc-ico"><i class="fa-solid fa-photo-film"></i></span>
+                <span class="ptc-name">Extract images</span><span class="ptc-desc">Pull pictures out of a PDF</span>
+              </button>
+              <button class="pdf-tool-card" data-pdf-tool="protect" onclick="switchPdfTool('protect')">
+                <span class="ptc-ico"><i class="fa-solid fa-lock"></i></span>
+                <span class="ptc-name">Protect PDF</span><span class="ptc-desc">Encrypt with a password</span>
+              </button>
+              <button class="pdf-tool-card" data-pdf-tool="unlock" onclick="switchPdfTool('unlock')">
+                <span class="ptc-ico"><i class="fa-solid fa-lock-open"></i></span>
+                <span class="ptc-name">Unlock PDF</span><span class="ptc-desc">Remove restrictions</span>
+              </button>
+            </div>
+
+            <!-- ----- MERGE ----- -->
+            <div class="pdf-panel" data-panel="merge">
+              <div class="panel-head">
+                <span class="ph-icon"><i class="fa-solid fa-object-group"></i></span>
+                <div><h4>Merge PDF files</h4><p>Select two or more PDFs and arrange the order before combining them into one document.</p></div>
+              </div>
+              <div id="dz-merge" class="drop-zone dz-slim bg-surface-base/50" role="button" tabindex="0" aria-label="Add PDF files to merge">
+                <input type="file" accept="application/pdf" multiple class="hidden">
+                <div class="dz-icon inline-flex p-3 rounded-2xl bg-red-500/12 text-red-400 mb-2"><i class="fa-solid fa-file-circle-plus text-2xl"></i></div>
+                <p class="text-slate-100 font-semibold text-sm">Click to select or drop PDF files</p>
+                <p class="text-slate-500 text-xs mt-1">Add as many as you like — you can reorder them below</p>
+              </div>
+              <div id="mergeListWrap" class="hidden mt-4 space-y-3">
+                <div class="flex items-center justify-between">
+                  <h4 class="text-xs font-semibold text-slate-300">Selected files (<span id="pdfFileCount">0</span>)</h4>
+                  <button onclick="clearMergeList()" class="text-xs text-rose-400 hover:text-rose-300 hover:underline">Clear all</button>
+                </div>
+                <div id="pdfItemsContainer" class="space-y-2 max-h-64 overflow-y-auto pr-1"></div>
+                <button id="mergeRunBtn" class="btn btn-primary w-full py-3 text-xs"><i class="fa-solid fa-object-group"></i><span>Merge PDF documents</span></button>
+              </div>
+            </div>
+
+            <!-- ----- SPLIT ----- -->
+            <div class="pdf-panel hidden" data-panel="split">
+              <div class="panel-head">
+                <span class="ph-icon"><i class="fa-solid fa-scissors"></i></span>
+                <div><h4>Split PDF</h4><p>Extract a page selection into one file, or break the document into several files delivered as a ZIP.</p></div>
+              </div>
+              <div id="dz-split" class="drop-zone dz-slim bg-surface-base/50" role="button" tabindex="0" aria-label="Upload a PDF to split">
+                <input type="file" accept="application/pdf" class="hidden">
+                <div class="dz-icon inline-flex p-3 rounded-2xl bg-amber-500/12 text-amber-400 mb-2"><i class="fa-solid fa-scissors text-2xl"></i></div>
+                <p class="text-slate-100 font-semibold text-sm">Click or drop a PDF here</p>
+                <p class="text-slate-500 text-xs mt-1">We will read the page count for you</p>
+              </div>
+              <div class="file-chip hidden mt-4" id="chip-split">
+                <i class="fa-solid fa-file-pdf text-rose-400"></i>
+                <span class="fc-name"></span><span class="fc-meta"></span>
+                <button class="fc-x" onclick="pdfReset('split')" aria-label="Remove file"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div id="body-split" class="hidden mt-4 space-y-4">
+                <div class="flex items-center justify-between text-xs text-slate-300">
+                  <span>Total pages:</span>
+                  <span id="splitTotalPages" class="px-3 py-1 rounded-full text-xs font-bold" style="background:rgba(99,102,241,.18); color:#a5b4fc; border:1px solid rgba(99,102,241,.32);">0</span>
+                </div>
+                <div class="seg" role="tablist" aria-label="Split mode">
+                  <button class="is-active" data-split-tab="extract">Extract ranges</button>
+                  <button data-split-tab="files">Split into files</button>
+                </div>
+                <div data-split-panel="extract" class="space-y-3">
+                  <div>
+                    <label class="lbl" for="splitRangeInput">Pages to extract (e.g. 1, 3-5, 8)</label>
+                    <input type="text" id="splitRangeInput" placeholder="1, 2-4, 7" class="field">
+                    <p class="hint mt-1.5">Commas separate pages, hyphens create ranges. The result is a single new PDF.</p>
+                  </div>
+                  <button id="splitExtractBtn" class="btn btn-primary w-full py-3 text-xs"><i class="fa-solid fa-file-export"></i><span>Extract &amp; save PDF</span></button>
+                </div>
+                <div data-split-panel="files" class="hidden space-y-3">
+                  <div>
+                    <label class="lbl" for="splitModeSelect">How should we split it?</label>
+                    <select id="splitModeSelect" class="field">
+                      <option value="fixed">Every N pages</option>
+                      <option value="ranges">One file per custom range</option>
+                    </select>
+                  </div>
+                  <div id="splitFixedWrap">
+                    <label class="lbl" for="splitPagesPerFile">Pages per file</label>
+                    <input type="number" id="splitPagesPerFile" class="field" value="1" min="1" max="500">
+                  </div>
+                  <div id="splitRangesWrap" class="hidden">
+                    <label class="lbl" for="splitRangesInput">Ranges (one per line or comma-separated)</label>
+                    <input type="text" id="splitRangesInput" placeholder="1-3, 4-6, 7-10" class="field">
+                  </div>
+                  <button id="splitFilesBtn" class="btn btn-primary w-full py-3 text-xs"><i class="fa-solid fa-box-archive"></i><span>Split &amp; download ZIP</span></button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ----- ORGANIZE ----- -->
+            <div class="pdf-panel hidden" data-panel="organize">
+              <div class="panel-head">
+                <span class="ph-icon"><i class="fa-solid fa-table-cells-large"></i></span>
+                <div><h4>Organise pages</h4><p>Rotate, remove and reorder pages with live thumbnails. Drag a page onto another to move it.</p></div>
+              </div>
+              <div id="dz-organize" class="drop-zone dz-slim bg-surface-base/50" role="button" tabindex="0" aria-label="Upload a PDF to organise">
+                <input type="file" accept="application/pdf" class="hidden">
+                <div class="dz-icon inline-flex p-3 rounded-2xl bg-sky-500/12 text-sky-400 mb-2"><i class="fa-solid fa-table-cells-large text-2xl"></i></div>
+                <p class="text-slate-100 font-semibold text-sm">Click or drop a PDF here</p>
+                <p class="text-slate-500 text-xs mt-1">Thumbnails are rendered as soon as it loads</p>
+              </div>
+              <div class="file-chip hidden mt-4" id="chip-organize">
+                <i class="fa-solid fa-file-pdf text-rose-400"></i>
+                <span class="fc-name"></span><span class="fc-meta"></span>
+                <button class="fc-x" onclick="pdfReset('organize')" aria-label="Remove file"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div id="body-organize" class="hidden mt-4 space-y-3">
+                <div class="flex flex-wrap items-center gap-2">
+                  <button class="btn btn-ghost px-3 py-2 text-[11px]" onclick="orgRotateAll(-90)"><i class="fa-solid fa-rotate-left"></i> Rotate all left</button>
+                  <button class="btn btn-ghost px-3 py-2 text-[11px]" onclick="orgRotateAll(90)"><i class="fa-solid fa-rotate-right"></i> Rotate all right</button>
+                  <button class="btn btn-ghost px-3 py-2 text-[11px]" onclick="organizeLoad()"><i class="fa-solid fa-arrow-rotate-left"></i> Reset</button>
+                  <span class="text-[11px] text-slate-400 ml-auto" id="orgSummary"></span>
+                </div>
+                <div id="orgGrid" class="thumb-grid"></div>
+                <button id="orgApplyBtn" class="btn btn-primary w-full py-3 text-xs"><i class="fa-solid fa-floppy-disk"></i><span>Apply changes &amp; save PDF</span></button>
+              </div>
+            </div>
+
+            <!-- ----- PAGE NUMBERS ----- -->
+            <div class="pdf-panel hidden" data-panel="numbers">
+              <div class="panel-head">
+                <span class="ph-icon"><i class="fa-solid fa-list-ol"></i></span>
+                <div><h4>Add page numbers</h4><p>Stamp sequential numbers on every page — choose the position, format and starting value.</p></div>
+              </div>
+              <div id="dz-numbers" class="drop-zone dz-slim bg-surface-base/50" role="button" tabindex="0" aria-label="Upload a PDF">
+                <input type="file" accept="application/pdf" class="hidden">
+                <div class="dz-icon inline-flex p-3 rounded-2xl bg-violet-500/12 text-violet-400 mb-2"><i class="fa-solid fa-list-ol text-2xl"></i></div>
+                <p class="text-slate-100 font-semibold text-sm">Click or drop a PDF here</p>
+                <p class="text-slate-500 text-xs mt-1">Numbers are written directly into the pages</p>
+              </div>
+              <div class="file-chip hidden mt-4" id="chip-numbers">
+                <i class="fa-solid fa-file-pdf text-rose-400"></i>
+                <span class="fc-name"></span><span class="fc-meta"></span>
+                <button class="fc-x" onclick="pdfReset('numbers')" aria-label="Remove file"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div id="body-numbers" class="hidden mt-4 space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><label class="lbl" for="numPosition">Position</label>
+                    <select id="numPosition" class="field">
+                      <option value="bottom-center" selected>Bottom centre</option>
+                      <option value="bottom-right">Bottom right</option>
+                      <option value="bottom-left">Bottom left</option>
+                      <option value="top-center">Top centre</option>
+                      <option value="top-right">Top right</option>
+                      <option value="top-left">Top left</option>
+                    </select>
+                  </div>
+                  <div><label class="lbl" for="numFormat">Format</label>
+                    <select id="numFormat" class="field">
+                      <option value="plain" selected>1</option>
+                      <option value="page">Page 1</option>
+                      <option value="of">1 / N</option>
+                    </select>
+                  </div>
+                  <div><label class="lbl" for="numStart">Start at</label><input type="number" id="numStart" class="field" value="1" min="1"></div>
+                  <div><label class="lbl" for="numSize">Font size (pt)</label><input type="number" id="numSize" class="field" value="11" min="6" max="48"></div>
+                  <div><label class="lbl" for="numMargin">Margin (pt)</label><input type="number" id="numMargin" class="field" value="28" min="8" max="120"></div>
+                  <label class="check pt-1"><input type="checkbox" id="numSkipFirst"> Skip the first page</label>
+                </div>
+                <button id="numRunBtn" class="btn btn-primary w-full py-3 text-xs"><i class="fa-solid fa-stamp"></i><span>Add page numbers</span></button>
+              </div>
+            </div>
+
+            <!-- ----- WATERMARK ----- -->
+            <div class="pdf-panel hidden" data-panel="watermark">
+              <div class="panel-head">
+                <span class="ph-icon"><i class="fa-solid fa-droplet"></i></span>
+                <div><h4>Add a watermark</h4><p>Overlay text on every page — diagonal stamp, tiled pattern or a simple horizontal line.</p></div>
+              </div>
+              <div id="dz-watermark" class="drop-zone dz-slim bg-surface-base/50" role="button" tabindex="0" aria-label="Upload a PDF">
+                <input type="file" accept="application/pdf" class="hidden">
+                <div class="dz-icon inline-flex p-3 rounded-2xl bg-teal-500/12 text-teal-400 mb-2"><i class="fa-solid fa-droplet text-2xl"></i></div>
+                <p class="text-slate-100 font-semibold text-sm">Click or drop a PDF here</p>
+                <p class="text-slate-500 text-xs mt-1">Pick your text and style below</p>
+              </div>
+              <div class="file-chip hidden mt-4" id="chip-watermark">
+                <i class="fa-solid fa-file-pdf text-rose-400"></i>
+                <span class="fc-name"></span><span class="fc-meta"></span>
+                <button class="fc-x" onclick="pdfReset('watermark')" aria-label="Remove file"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div id="body-watermark" class="hidden mt-4 space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="sm:col-span-2"><label class="lbl" for="wmText">Watermark text</label><input type="text" id="wmText" class="field" value="CONFIDENTIAL"></div>
+                  <div><label class="lbl" for="wmStyle">Style</label>
+                    <select id="wmStyle" class="field">
+                      <option value="diagonal" selected>Diagonal stamp</option>
+                      <option value="tiled">Tiled pattern</option>
+                      <option value="horizontal">Horizontal centre</option>
+                    </select>
+                  </div>
+                  <div><label class="lbl" for="wmColor">Colour</label>
+                    <select id="wmColor" class="field">
+                      <option value="rose">Rose</option>
+                      <option value="slate" selected>Slate</option>
+                      <option value="indigo">Indigo</option>
+                      <option value="amber">Amber</option>
+                    </select>
+                  </div>
+                  <div><label class="lbl" for="wmSize">Font size (pt)</label><input type="number" id="wmSize" class="field" value="54" min="8" max="200"></div>
+                  <div><label class="lbl" for="wmOpacity">Opacity <span id="wmOpacityVal" class="text-brand-400">18%</span></label>
+                    <input type="range" id="wmOpacity" min="4" max="60" value="18" style="--pct:18%">
+                  </div>
+                </div>
+                <button id="wmRunBtn" class="btn btn-primary w-full py-3 text-xs"><i class="fa-solid fa-droplet"></i><span>Apply watermark</span></button>
+              </div>
+            </div>
+
+            <!-- ----- COMPRESS ----- -->
+            <div class="pdf-panel hidden" data-panel="compress">
+              <div class="panel-head">
+                <span class="ph-icon"><i class="fa-solid fa-compress"></i></span>
+                <div><h4>Compress PDF</h4><p>Flatten every page to an optimised image at the resolution you pick. Great for scans and image-heavy files.</p></div>
+              </div>
+              <div id="dz-compress" class="drop-zone dz-slim bg-surface-base/50" role="button" tabindex="0" aria-label="Upload a PDF to compress">
+                <input type="file" accept="application/pdf" class="hidden">
+                <div class="dz-icon inline-flex p-3 rounded-2xl bg-lime-500/12 text-lime-400 mb-2"><i class="fa-solid fa-compress text-2xl"></i></div>
+                <p class="text-slate-100 font-semibold text-sm">Click or drop a PDF here</p>
+                <p class="text-slate-500 text-xs mt-1">Compare the size before you download</p>
+              </div>
+              <div class="file-chip hidden mt-4" id="chip-compress">
+                <i class="fa-solid fa-file-pdf text-rose-400"></i>
+                <span class="fc-name"></span><span class="fc-meta"></span>
+                <button class="fc-x" onclick="pdfReset('compress')" aria-label="Remove file"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div id="body-compress" class="hidden mt-4 space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><label class="lbl" for="cmpScale">Resolution</label>
+                    <select id="cmpScale" class="field">
+                      <option value="1">Screen — 72 dpi (smallest)</option>
+                      <option value="1.5" selected>Medium — 110 dpi</option>
+                      <option value="2">High — 150 dpi</option>
+                      <option value="2.6">Print — 190 dpi</option>
+                    </select>
+                  </div>
+                  <div><label class="lbl" for="cmpQuality">Image quality <span id="cmpQualityVal" class="text-brand-400">65%</span></label>
+                    <input type="range" id="cmpQuality" min="30" max="92" value="65" style="--pct:52%">
+                  </div>
+                  <label class="check"><input type="checkbox" id="cmpGray"> Convert to greyscale</label>
+                  <label class="check"><input type="checkbox" id="cmpKeepText" checked> Keep this document's page size</label>
+                </div>
+                <div id="cmpResult" class="hidden stat-tile" style="text-align:left;">
+                  <div class="text-[11px] text-slate-400">Result</div>
+                  <div class="text-xs text-slate-200 mt-1" id="cmpResultText"></div>
+                </div>
+                <button id="cmpRunBtn" class="btn btn-primary w-full py-3 text-xs"><i class="fa-solid fa-compress"></i><span>Compress PDF</span></button>
+                <p class="hint"><i class="fa-solid fa-circle-info mr-1"></i>This rebuilds each page as an image, so text stops being selectable. Combine it with "Keep page size" for predictable printing.</p>
+              </div>
+            </div>
+
+            <!-- ----- PDF TO JPG ----- -->
+            <div class="pdf-panel hidden" data-panel="tojpg">
+              <div class="panel-head">
+                <span class="ph-icon"><i class="fa-solid fa-images"></i></span>
+                <div><h4>PDF → JPG</h4><p>Export pages as JPG or PNG images. Multiple pages arrive together in a ZIP file.</p></div>
+              </div>
+              <div id="dz-tojpg" class="drop-zone dz-slim bg-surface-base/50" role="button" tabindex="0" aria-label="Upload a PDF">
+                <input type="file" accept="application/pdf" class="hidden">
+                <div class="dz-icon inline-flex p-3 rounded-2xl bg-fuchsia-500/12 text-fuchsia-400 mb-2"><i class="fa-solid fa-images text-2xl"></i></div>
+                <p class="text-slate-100 font-semibold text-sm">Click or drop a PDF here</p>
+                <p class="text-slate-500 text-xs mt-1">Every page becomes an image</p>
+              </div>
+              <div class="file-chip hidden mt-4" id="chip-tojpg">
+                <i class="fa-solid fa-file-pdf text-rose-400"></i>
+                <span class="fc-name"></span><span class="fc-meta"></span>
+                <button class="fc-x" onclick="pdfReset('tojpg')" aria-label="Remove file"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div id="body-tojpg" class="hidden mt-4 space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><label class="lbl" for="jpgScale">Resolution</label>
+                    <select id="jpgScale" class="field">
+                      <option value="1.4" selected>Medium — 100 dpi</option>
+                      <option value="2">High — 150 dpi</option>
+                      <option value="3">Very high — 215 dpi</option>
+                    </select>
+                  </div>
+                  <div><label class="lbl" for="jpgFormat">Format</label>
+                    <select id="jpgFormat" class="field">
+                      <option value="image/jpeg" selected>JPG</option>
+                      <option value="image/png">PNG</option>
+                    </select>
+                  </div>
+                  <div><label class="lbl" for="jpgQuality">Quality <span id="jpgQualityVal" class="text-brand-400">85%</span></label>
+                    <input type="range" id="jpgQuality" min="40" max="100" value="85" style="--pct:75%">
+                  </div>
+                  <div><label class="lbl" for="jpgPages">Pages (blank = all)</label><input type="text" id="jpgPages" class="field" placeholder="e.g. 1-3, 6"></div>
+                </div>
+                <div id="jpgPreview" class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5"></div>
+                <button id="jpgRunBtn" class="btn btn-primary w-full py-3 text-xs"><i class="fa-solid fa-file-export"></i><span>Convert to images</span></button>
+              </div>
+            </div>
+
+            <!-- ----- JPG TO PDF ----- -->
+            <div class="pdf-panel hidden" data-panel="fromimg">
+              <div class="panel-head">
+                <span class="ph-icon"><i class="fa-solid fa-file-image"></i></span>
+                <div><h4>JPG / PNG → PDF</h4><p>Turn photos, scans and screenshots into a single PDF, one image per page.</p></div>
+              </div>
+              <div id="dz-fromimg" class="drop-zone dz-slim bg-surface-base/50" role="button" tabindex="0" aria-label="Add images">
+                <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" multiple class="hidden">
+                <div class="dz-icon inline-flex p-3 rounded-2xl bg-cyan-500/12 text-cyan-400 mb-2"><i class="fa-solid fa-file-image text-2xl"></i></div>
+                <p class="text-slate-100 font-semibold text-sm">Click to select or drop images</p>
+                <p class="text-slate-500 text-xs mt-1">PNG, JPG and WebP — reorder them below</p>
+              </div>
+              <div id="fromImgListWrap" class="hidden mt-4 space-y-3">
+                <div class="flex items-center justify-between">
+                  <h4 class="text-xs font-semibold text-slate-300">Images (<span id="fromImgCount">0</span>)</h4>
+                  <button onclick="clearFromImgList()" class="text-xs text-rose-400 hover:text-rose-300 hover:underline">Clear all</button>
+                </div>
+                <div id="fromImgItems" class="space-y-2 max-h-56 overflow-y-auto pr-1"></div>
+              </div>
+              <div id="body-fromimg" class="hidden mt-4 space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><label class="lbl" for="i2pSize">Page size</label>
+                    <select id="i2pSize" class="field">
+                      <option value="a4" selected>A4</option>
+                      <option value="letter">US Letter</option>
+                      <option value="fit">Fit to image</option>
+                    </select>
+                  </div>
+                  <div><label class="lbl" for="i2pOrient">Orientation</label>
+                    <select id="i2pOrient" class="field">
+                      <option value="auto" selected>Auto</option>
+                      <option value="portrait">Portrait</option>
+                      <option value="landscape">Landscape</option>
+                    </select>
+                  </div>
+                  <div><label class="lbl" for="i2pFit">Image fitting</label>
+                    <select id="i2pFit" class="field">
+                      <option value="contain" selected>Contain — show the whole image</option>
+                      <option value="cover">Cover — fill the page</option>
+                    </select>
+                  </div>
+                  <div><label class="lbl" for="i2pMargin">Margin <span id="i2pMarginVal" class="text-brand-400">24 pt</span></label>
+                    <input type="range" id="i2pMargin" min="0" max="80" value="24" style="--pct:30%">
+                  </div>
+                </div>
+                <button id="i2pRunBtn" class="btn btn-primary w-full py-3 text-xs"><i class="fa-solid fa-file-pdf"></i><span>Create PDF</span></button>
+              </div>
+            </div>
+
+            <!-- ----- EXTRACT IMAGES ----- -->
+            <div class="pdf-panel hidden" data-panel="extract">
+              <div class="panel-head">
+                <span class="ph-icon"><i class="fa-solid fa-photo-film"></i></span>
+                <div><h4>Extract images</h4><p>Pull the embedded pictures out of a PDF. Pages without embedded images are exported as full-page renders instead.</p></div>
+              </div>
+              <div id="dz-extract" class="drop-zone dz-slim bg-surface-base/50" role="button" tabindex="0" aria-label="Upload a PDF">
+                <input type="file" accept="application/pdf" class="hidden">
+                <div class="dz-icon inline-flex p-3 rounded-2xl bg-orange-500/12 text-orange-400 mb-2"><i class="fa-solid fa-photo-film text-2xl"></i></div>
+                <p class="text-slate-100 font-semibold text-sm">Click or drop a PDF here</p>
+                <p class="text-slate-500 text-xs mt-1">Results are packaged in a ZIP</p>
+              </div>
+              <div class="file-chip hidden mt-4" id="chip-extract">
+                <i class="fa-solid fa-file-pdf text-rose-400"></i>
+                <span class="fc-name"></span><span class="fc-meta"></span>
+                <button class="fc-x" onclick="pdfReset('extract')" aria-label="Remove file"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div id="body-extract" class="hidden mt-4 space-y-4">
+                <label class="check"><input type="checkbox" id="exFullPages" checked> Also include a full-page render for pages with no embedded image</label>
+                <button id="exRunBtn" class="btn btn-primary w-full py-3 text-xs"><i class="fa-solid fa-photo-film"></i><span>Extract images</span></button>
+                <div id="exResult" class="hidden stat-tile" style="text-align:left;">
+                  <div class="text-xs text-slate-200" id="exResultText"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ----- PROTECT ----- -->
+            <div class="pdf-panel hidden" data-panel="protect">
+              <div class="panel-head">
+                <span class="ph-icon"><i class="fa-solid fa-lock"></i></span>
+                <div><h4>Protect PDF</h4><p>Encrypt the file so it can only be opened with your password, and choose what readers are allowed to do.</p></div>
+              </div>
+              <div id="dz-protect" class="drop-zone dz-slim bg-surface-base/50" role="button" tabindex="0" aria-label="Upload a PDF to protect">
+                <input type="file" accept="application/pdf" class="hidden">
+                <div class="dz-icon inline-flex p-3 rounded-2xl bg-rose-500/12 text-rose-400 mb-2"><i class="fa-solid fa-lock text-2xl"></i></div>
+                <p class="text-slate-100 font-semibold text-sm">Click or drop a PDF here</p>
+                <p class="text-slate-500 text-xs mt-1">The password never leaves your browser</p>
+              </div>
+              <div class="file-chip hidden mt-4" id="chip-protect">
+                <i class="fa-solid fa-file-pdf text-rose-400"></i>
+                <span class="fc-name"></span><span class="fc-meta"></span>
+                <button class="fc-x" onclick="pdfReset('protect')" aria-label="Remove file"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div id="body-protect" class="hidden mt-4 space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><label class="lbl" for="protUserPass">Open password</label><input type="password" id="protUserPass" class="field" placeholder="At least 4 characters" autocomplete="new-password"></div>
+                  <div><label class="lbl" for="protUserPass2">Repeat password</label><input type="password" id="protUserPass2" class="field" placeholder="Type it again" autocomplete="new-password"></div>
+                  <div class="sm:col-span-2"><label class="lbl" for="protOwnerPass">Owner password (optional)</label><input type="password" id="protOwnerPass" class="field" placeholder="Used for changing permissions" autocomplete="new-password"></div>
+                </div>
+                <div class="soft-card rounded-2xl p-4 space-y-2.5">
+                  <h4 class="text-xs font-semibold text-slate-300">Allow readers to</h4>
+                  <label class="check"><input type="checkbox" id="protPrint" checked> Print the document</label>
+                  <label class="check"><input type="checkbox" id="protCopy"> Copy text and images</label>
+                  <label class="check"><input type="checkbox" id="protModify"> Modify the contents</label>
+                  <label class="check"><input type="checkbox" id="protAnnot" checked> Add comments and annotations</label>
+                </div>
+                <button id="protRunBtn" class="btn btn-primary w-full py-3 text-xs"><i class="fa-solid fa-lock"></i><span>Encrypt &amp; save PDF</span></button>
+                <p class="hint"><i class="fa-solid fa-shield-halved mr-1"></i>Strong AES encryption is applied locally. Keep your password safe — Paper_cave cannot recover it.</p>
+              </div>
+            </div>
+
+            <!-- ----- UNLOCK ----- -->
+            <div class="pdf-panel hidden" data-panel="unlock">
+              <div class="panel-head">
+                <span class="ph-icon"><i class="fa-solid fa-lock-open"></i></span>
+                <div><h4>Unlock PDF</h4><p>Remove editing and printing restrictions from a document you own, producing a clean, unencrypted copy.</p></div>
+              </div>
+              <div id="dz-unlock" class="drop-zone dz-slim bg-surface-base/50" role="button" tabindex="0" aria-label="Upload a PDF to unlock">
+                <input type="file" accept="application/pdf" class="hidden">
+                <div class="dz-icon inline-flex p-3 rounded-2xl bg-emerald-500/12 text-emerald-400 mb-2"><i class="fa-solid fa-lock-open text-2xl"></i></div>
+                <p class="text-slate-100 font-semibold text-sm">Click or drop a PDF here</p>
+                <p class="text-slate-500 text-xs mt-1">Works on owner-password restrictions</p>
+              </div>
+              <div class="file-chip hidden mt-4" id="chip-unlock">
+                <i class="fa-solid fa-file-pdf text-rose-400"></i>
+                <span class="fc-name"></span><span class="fc-meta"></span>
+                <button class="fc-x" onclick="pdfReset('unlock')" aria-label="Remove file"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div id="body-unlock" class="hidden mt-4 space-y-4">
+                <div><label class="lbl" for="unlockPass">Open password (if you have it)</label><input type="password" id="unlockPass" class="field" placeholder="Leave blank for restriction-only PDFs" autocomplete="off"></div>
+                <button id="unlockRunBtn" class="btn btn-primary w-full py-3 text-xs"><i class="fa-solid fa-lock-open"></i><span>Remove protection &amp; save</span></button>
+                <p class="hint"><i class="fa-solid fa-circle-info mr-1"></i>PDFs locked with an <em>owner</em> password (the “no copying / no printing” kind) unlock cleanly. If the page contents themselves are encrypted with a user password you must supply it here. Only unlock files you own the rights to.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ IMAGE ============ -->
+        <section id="tool-image" class="tool-content hidden space-y-6">
+          <div class="glass-panel rounded-[22px] p-5 sm:p-7">
+            <div class="mb-6">
+              <h3 class="text-lg font-bold text-white flex items-center gap-2.5">
+                <span class="inline-flex p-2 rounded-xl bg-brand-500/12 text-brand-400"><i class="fa-solid fa-file-image"></i></span>
+                Local Image Compressor &amp; Converter
+              </h3>
+              <p class="text-xs text-slate-400 mt-1.5">Compress, resize and convert PNG, JPG or WebP images entirely inside your browser memory.</p>
+            </div>
+
+            <div id="imgDropZone" class="drop-zone p-8 sm:p-10 text-center bg-surface-base/50" role="button" tabindex="0" aria-label="Upload an image">
+              <input type="file" id="imgFileInput" accept="image/png, image/jpeg, image/webp" class="hidden">
+              <div class="dz-icon inline-flex p-4 rounded-2xl bg-brand-500/12 text-brand-400 mb-3"><i class="fa-solid fa-cloud-arrow-up text-3xl"></i></div>
+              <p class="text-slate-100 font-semibold text-sm">Click to select or drag &amp; drop an image</p>
+              <p class="text-slate-500 text-xs mt-1.5">Supports PNG, JPG, JPEG, WebP</p>
+            </div>
+
+            <div id="imgControls" class="hidden mt-6 space-y-6">
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="space-y-4 soft-card p-5 rounded-2xl">
+                  <h4 class="text-xs font-semibold text-slate-300">Compression &amp; dimension settings</h4>
+                  <div>
+                    <div class="flex justify-between text-xs font-medium text-slate-400 mb-2"><span>Quality</span><span id="qualityVal" class="text-brand-400 font-bold">80%</span></div>
+                    <input type="range" id="imgQuality" min="10" max="100" value="80" style="--pct:78%">
+                  </div>
+                  <div>
+                    <label class="lbl" for="imgFormat">Target format</label>
+                    <select id="imgFormat" class="field">
+                      <option value="image/jpeg">JPEG (.jpg)</option>
+                      <option value="image/png">PNG (.png)</option>
+                      <option value="image/webp" selected>WebP (.webp)</option>
+                    </select>
+                  </div>
+                  <div class="grid grid-cols-2 gap-3 pt-1">
+                    <div><label class="lbl" for="imgWidthInput">Width (px)</label><input type="number" id="imgWidthInput" class="field"></div>
+                    <div><label class="lbl" for="imgHeightInput">Height (px)</label><input type="number" id="imgHeightInput" class="field"></div>
+                  </div>
+                  <label class="check"><input type="checkbox" id="keepAspectCheck" checked> Lock aspect ratio</label>
+                </div>
+
+                <div class="soft-card p-5 rounded-2xl flex flex-col justify-between gap-4">
+                  <div>
+                    <h4 class="text-xs font-semibold text-slate-300 mb-4">Compression summary</h4>
+                    <div class="grid grid-cols-3 gap-2.5">
+                      <div class="stat-tile"><span class="block text-[10px] text-slate-400 mb-0.5">Original</span><span id="origSizeText" class="text-xs font-bold text-slate-200">0 KB</span></div>
+                      <div class="stat-tile"><span class="block text-[10px] text-slate-400 mb-0.5">Compressed</span><span id="compSizeText" class="text-xs font-bold text-brand-400">0 KB</span></div>
+                      <div class="stat-tile"><span class="block text-[10px] text-slate-400 mb-0.5">Saved</span><span id="savedPctText" class="text-xs font-bold text-emerald-400">0%</span></div>
+                    </div>
+                  </div>
+                  <button id="imgDownloadBtn" class="btn btn-primary w-full py-3 text-xs"><i class="fa-solid fa-download"></i><span>Download compressed image</span></button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="text-center">
+                  <span class="text-[11px] font-medium text-slate-400 mb-2 block">Original image</span>
+                  <div class="p-2 bg-surface-card/70 rounded-2xl border border-surface-border max-h-72 overflow-hidden flex items-center justify-center min-h-[160px]">
+                    <img id="origImgPreview" class="max-h-64 object-contain rounded-lg" alt="Original preview">
+                  </div>
+                </div>
+                <div class="text-center">
+                  <span class="text-[11px] font-medium text-slate-400 mb-2 block">Compressed output</span>
+                  <div class="p-2 bg-surface-card/70 rounded-2xl border border-surface-border max-h-72 overflow-hidden flex items-center justify-center min-h-[160px]">
+                    <img id="compImgPreview" class="max-h-64 object-contain rounded-lg" alt="Compressed preview">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="px-5 sm:px-7 py-4 border-t border-surface-border text-[11px] text-slate-500 flex flex-wrap items-center justify-between gap-2">
+        <span><strong class="text-slate-400">Paper_cave</strong> — your files never leave this device.</span>
+        <span class="flex items-center gap-1.5"><i class="fa-solid fa-bolt text-amber-400"></i> Built with pdf-lib &amp; pdf.js, running fully client-side</span>
+      </footer>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-[70] flex flex-col gap-2 pointer-events-none" aria-live="polite"></div>
+  <div id="workStatus" class="work-status" role="status" aria-live="polite" hidden>
+    <span class="ws-spinner"></span><span id="workStatusText">Working…</span>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script>
+  'use strict';
+  /* ======================================================================
+     Paper_cave — private in-browser utility suite
+     ====================================================================== */
+  const $ = (id) => document.getElementById(id);
+  const qsa = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const escapeHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  /* ---------- Toasts ---------- */
+  function showToast(message, type) {
+    type = type || 'info';
+    const container = $('toastContainer');
+    const icons = { info: 'fa-circle-info', success: 'fa-circle-check', error: 'fa-circle-xmark' };
+    const colours = { info: 'text-brand-400', success: 'text-emerald-400', error: 'text-rose-400' };
+    const toast = document.createElement('div');
+    toast.className = 'toast pointer-events-auto ' + type;
+    toast.innerHTML = '<i class="fa-solid ' + (icons[type] || icons.info) + ' ' + (colours[type] || colours.info) + '"></i><span>' + escapeHtml(message) + '</span>';
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 320); }, 4200);
+  }
+
+  /* ---------- Work indicator ---------- */
+  function setWork(text) { const el = $('workStatus'); $('workStatusText').textContent = text || 'Working…'; el.hidden = false; }
+  function clearWork() { $('workStatus').hidden = true; }
+  function fail(label, err) {
+    console.error(label, err);
+    let msg = (err && err.message) ? err.message : String(err);
+    if (/encrypted/i.test(msg)) msg = 'This PDF is encrypted. Use the Unlock PDF tool first.';
+    showToast(label + ' failed: ' + msg, 'error');
+  }
+
+  /* ---------- Misc helpers ---------- */
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  function formatBytes(bytes, decimals) {
+    if (!bytes) return '0 Bytes';
+    const k = 1024, dm = (decimals === undefined ? 2 : decimals);
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  }
+  const canvasToBlob = (canvas, type, q) => new Promise(res => canvas.toBlob(res, type, q));
+  const isPdfFile = (f) => f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
+  const baseName = (name) => String(name || 'file').replace(/\.[^.]+$/, '') || 'file';
+  function withTimeout(promise, ms, label) {
+    return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error(label || 'Timed out')), ms))]);
+  }
+  function setRangeFill(el) {
+    const min = parseFloat(el.min || 0), max = parseFloat(el.max || 100);
+    const pct = ((parseFloat(el.value) - min) / (max - min)) * 100;
+    el.style.setProperty('--pct', pct + '%');
+  }
+  qsa('input[type=range]').forEach(setRangeFill);
+
+  /* ---------- Tabs ---------- */
+  const toolTitles = { voice: 'Voice Transcriber', media: 'Media Trimmer', pdf: 'PDF Toolkit', image: 'Image Compressor' };
+  const toolSubtitles = {
+    voice: "Dictate notes and meetings with your browser's speech engine.",
+    media: 'Trim audio and video clips on an interactive timeline.',
+    pdf: 'Eleven PDF tools — merge, split, organise, convert, protect.',
+    image: 'Compress and resize images right in your browser.'
+  };
+  function switchTab(tabId) {
+    qsa('.tool-content').forEach(el => { el.classList.add('hidden'); el.classList.remove('tool-enter'); });
+    qsa('.nav-btn').forEach(btn => btn.classList.remove('is-active'));
+    const section = $('tool-' + tabId);
+    if (!section) return;
+    section.classList.remove('hidden');
+    void section.offsetWidth;
+    section.classList.add('tool-enter');
+    const nav = $('nav-' + tabId);
+    if (nav) nav.classList.add('is-active');
+    $('currentToolTitle').textContent = toolTitles[tabId] || 'Private Suite';
+    $('currentToolSubtitle').textContent = toolSubtitles[tabId] || '';
+    if (window.BG && BG.pulse) BG.pulse();
+  }
+
+  /* ======================================================================
+     INTERACTIVE BACKGROUND — cursor-reactive particle field
+     ====================================================================== */
+  const BG = (function () {
+    const canvas = $('bgCanvas');
+    const aura = $('bgAura');
+    const orbs = qsa('.orb');
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let ctx = null, W = 0, H = 0, parts = [], raf = null, running = false;
+    let ptr = { x: -9999, y: -9999, tx: -9999, ty: -9999, active: false };
+    let enabled = localStorage.getItem('pc-fx') !== 'off';
+    const BURST = [];
+
+    function spawn(x, y) {
+      return {
+        x: x === undefined ? Math.random() * W : x,
+        y: y === undefined ? Math.random() * H : y,
+        vx: (Math.random() - .5) * .3,
+        vy: (Math.random() - .5) * .3,
+        r: Math.random() * 1.7 + .6,
+        hue: Math.random() < .5 ? 245 : 265,
+        a: Math.random() * .45 + .25
+      };
+    }
+    function resize() {
+      if (!canvas) return;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      W = window.innerWidth; H = window.innerHeight;
+      canvas.width = Math.floor(W * dpr); canvas.height = Math.floor(H * dpr);
+      canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+      ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const target = clamp(Math.round((W * H) / 24000), 22, 78);
+      parts = Array.from({ length: target }, () => spawn());
+    }
+    function burst(x, y) {
+      for (let i = 0; i < 11; i++) {
+        const ang = (Math.PI * 2 * i) / 11 + Math.random() * .5;
+        const sp = 1.4 + Math.random() * 2.4;
+        BURST.push({ x: x, y: y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, life: 1, r: Math.random() * 2 + 1, hue: Math.random() < .5 ? 255 : 190 });
+      }
+    }
+    function step() {
+      if (!ctx) return;
+      ctx.clearRect(0, 0, W, H);
+      ptr.x += (ptr.tx - ptr.x) * .09;
+      ptr.y += (ptr.ty - ptr.y) * .09;
+
+      // pointer glow
+      if (ptr.active) {
+        const g = ctx.createRadialGradient(ptr.x, ptr.y, 0, ptr.x, ptr.y, 190);
+        g.addColorStop(0, 'rgba(129,140,248,0.13)');
+        g.addColorStop(.55, 'rgba(139,92,246,0.05)');
+        g.addColorStop(1, 'rgba(139,92,246,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(ptr.x, ptr.y, 190, 0, Math.PI * 2); ctx.fill();
+      }
+
+      const linkDist = 132;
+      for (let i = 0; i < parts.length; i++) {
+        const p = parts[i];
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < -20) p.x = W + 20; if (p.x > W + 20) p.x = -20;
+        if (p.y < -20) p.y = H + 20; if (p.y > H + 20) p.y = -20;
+
+        if (ptr.active) {
+          const dx = p.x - ptr.x, dy = p.y - ptr.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < 30000 && d2 > 1) {
+            const f = (1 - d2 / 30000) * .35;
+            const d = Math.sqrt(d2);
+            p.vx += (dx / d) * f; p.vy += (dy / d) * f;
+          }
+        }
+        const sp2 = p.vx * p.vx + p.vy * p.vy;
+        if (sp2 > 1.6) { p.vx *= .95; p.vy *= .95; }
+        p.vx *= .999; p.vy *= .999;
+
+        ctx.beginPath();
+        ctx.fillStyle = 'hsla(' + p.hue + ',85%,72%,' + p.a + ')';
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        for (let j = i + 1; j < parts.length; j++) {
+          const q = parts[j];
+          const ddx = p.x - q.x, ddy = p.y - q.y;
+          const dd = ddx * ddx + ddy * ddy;
+          if (dd < linkDist * linkDist) {
+            const alpha = (1 - dd / (linkDist * linkDist)) * .14;
+            ctx.strokeStyle = 'rgba(139,148,255,' + alpha + ')';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+          }
+        }
+      }
+
+      for (let k = BURST.length - 1; k >= 0; k--) {
+        const b = BURST[k];
+        b.x += b.vx; b.y += b.vy; b.vx *= .96; b.vy *= .96; b.life -= .022;
+        if (b.life <= 0) { BURST.splice(k, 1); continue; }
+        ctx.beginPath();
+        ctx.fillStyle = 'hsla(' + b.hue + ',90%,74%,' + Math.max(0, b.life) + ')';
+        ctx.arc(b.x, b.y, b.r * b.life, 0, Math.PI * 2); ctx.fill();
+      }
+
+      raf = requestAnimationFrame(step);
+    }
+    function start() { if (running || !enabled || reduce) return; running = true; raf = requestAnimationFrame(step); }
+    function stop() { running = false; if (raf) cancelAnimationFrame(raf); raf = null; if (ctx) ctx.clearRect(0, 0, W, H); }
+
+    function pointerMove(x, y) {
+      ptr.tx = x; ptr.ty = y;
+      if (!ptr.active) { ptr.x = x; ptr.y = y; ptr.active = true; }
+      // parallax orbs
+      const nx = (x / Math.max(1, W)) - .5, ny = (y / Math.max(1, H)) - .5;
+      orbs.forEach(o => {
+        const d = parseFloat(o.dataset.depth || '20');
+        o.style.transform = 'translate3d(' + (-nx * d) + 'px,' + (-ny * d) + 'px,0)';
+      });
+    }
+
+    if (canvas && !reduce) {
+      resize();
+      window.addEventListener('resize', () => { resize(); }, { passive: true });
+      window.addEventListener('pointermove', e => pointerMove(e.clientX, e.clientY), { passive: true });
+      window.addEventListener('pointerdown', e => { burst(e.clientX, e.clientY); pointerMove(e.clientX, e.clientY); }, { passive: true });
+      window.addEventListener('pointerleave', () => { ptr.active = false; ptr.tx = -9999; ptr.ty = -9999; }, { passive: true });
+      document.addEventListener('visibilitychange', () => { document.hidden ? stop() : start(); });
+      if (enabled) start();
+    }
+
+    return {
+      pulse: function () { if (W && H) burst(Math.random() * W, Math.random() * H * .6); },
+      enabled: () => enabled,
+      setEnabled: function (on) {
+        enabled = on;
+        localStorage.setItem('pc-fx', on ? 'on' : 'off');
+        document.body.classList.toggle('fx-off', !on);
+        if (on) start(); else stop();
+        const txt = $('fxToggleText'), ico = $('fxToggleIcon'), btn = $('fxToggle');
+        if (txt) txt.textContent = 'Ambient effects: ' + (on ? 'on' : 'off');
+        if (ico) ico.className = on ? 'fa-solid fa-wand-magic-sparkles text-brand-400' : 'fa-solid fa-wand-magic-sparkles text-slate-500';
+        if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      }
+    };
+  })();
+
+  function toggleFx() { BG.setEnabled(!BG.enabled()); showToast('Ambient effects ' + (BG.enabled() ? 'enabled' : 'disabled'), 'info'); }
+
+  /* ---------- Ripple + micro-interactions ---------- */
+  document.addEventListener('pointerdown', function (e) {
+    const btn = e.target.closest('.btn, .pdf-tool-card, .seg button');
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    const span = document.createElement('span');
+    span.className = 'ripple';
+    span.style.width = span.style.height = size + 'px';
+    span.style.left = (e.clientX - rect.left - size / 2) + 'px';
+    span.style.top = (e.clientY - rect.top - size / 2) + 'px';
+    if (getComputedStyle(btn).position === 'static') btn.style.position = 'relative';
+    btn.appendChild(span);
+    setTimeout(() => span.remove(), 640);
+  }, { passive: true });
+
+  /* ======================================================================
+     VOICE TRANSCRIBER
+     ====================================================================== */
+  const Voice = (function () {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const supported = !!SR;
+    let rec = null, state = 'idle', committed = '', interimText = '';
+    let restartTimer = null, failures = 0, fatal = false, writing = false;
+    let startedAt = 0, elapsedTimer = null;
+    const textarea = $('transcriptTextarea');
+
+    function alertBox(msg) {
+      const box = $('speechAlert');
+      if (!msg) { box.classList.add('hidden'); return; }
+      $('speechAlertText').textContent = msg;
+      box.classList.remove('hidden');
+    }
+    function setPill(kind, text) {
+      const pill = $('voiceStatusPill');
+      if (kind === 'live') {
+        pill.className = 'pill recording-pulse';
+        pill.style.borderColor = 'rgba(52,211,153,.42)';
+        pill.style.color = '#6ee7b7';
+        pill.innerHTML = '<span class="dot live"></span><span id="voiceStatusText">' + escapeHtml(text) + '</span>';
+      } else if (kind === 'warn') {
+        pill.className = 'pill';
+        pill.style.borderColor = 'rgba(251,113,133,.42)';
+        pill.style.color = '#fda4af';
+        pill.innerHTML = '<span class="dot" style="background:#fb7185"></span><span id="voiceStatusText">' + escapeHtml(text) + '</span>';
+      } else {
+        pill.className = 'pill';
+        pill.style.borderColor = '';
+        pill.style.color = '';
+        pill.innerHTML = '<span class="dot"></span><span id="voiceStatusText">' + escapeHtml(text) + '</span>';
+      }
+    }
+    function setButton(listening, busy) {
+      const btn = $('startVoiceBtn');
+      const txt = $('startVoiceText');
+      const ico = $('voiceBtnIcon');
+      btn.disabled = !!busy;
+      if (listening) {
+        btn.className = 'btn btn-rose px-5 py-2.5 text-xs';
+        txt.textContent = 'Stop dictation';
+        ico.className = 'fa-solid fa-stop';
+      } else {
+        btn.className = 'btn btn-emerald px-5 py-2.5 text-xs';
+        txt.textContent = busy ? 'Starting…' : 'Start transcribing';
+        ico.className = 'fa-solid fa-microphone';
+      }
+    }
+    function timer(on) {
+      if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+      const box = $('voiceTimer');
+      if (!on) { box.classList.add('hidden'); return; }
+      box.classList.remove('hidden');
+      startedAt = Date.now();
+      const tick = () => {
+        const s = Math.floor((Date.now() - startedAt) / 1000);
+        $('voiceTimerText').textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+      };
+      tick();
+      elapsedTimer = setInterval(tick, 1000);
+    }
+    function renderTranscript() {
+      writing = true;
+      const combined = committed + interimText;
+      textarea.value = combined;
+      try { textarea.selectionStart = textarea.selectionEnd = combined.length; } catch (e) { }
+      updateTranscriptStats();
+      writing = false;
+    }
+    function build() {
+      if (!supported) return null;
+      const r = new SR();
+      r.continuous = true;
+      r.interimResults = true;
+      r.maxAlternatives = 1;
+      r.addEventListener('start', () => {
+        state = 'listening'; failures = 0; fatal = false;
+        setPill('live', 'Listening…');
+        setButton(true, false);
+        timer(true);
+      });
+      r.addEventListener('result', (event) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const res = event.results[i];
+          const txt = res[0] ? res[0].transcript : '';
+          if (res.isFinal) committed += txt + ' ';
+          else interim += txt;
+        }
+        interimText = interim;
+        renderTranscript();
+      });
+      r.addEventListener('error', (event) => {
+        const code = event.error || 'unknown';
+        console.warn('Speech recognition error:', code);
+        if (code === 'no-speech' || code === 'aborted') return;
+        if (code === 'not-allowed' || code === 'service-not-allowed') {
+          fatal = true;
+          alertBox('Microphone access was blocked. Allow the microphone from the address-bar icon (or this page may be inside a frame that blocks it — open Paper_cave in its own tab), then press Start again.');
+          showToast('Microphone permission blocked', 'error');
+        } else if (code === 'audio-capture') {
+          fatal = true;
+          alertBox('No microphone was found. Connect an input device and try again.');
+          showToast('No microphone detected', 'error');
+        } else if (code === 'language-not-supported') {
+          fatal = true;
+          alertBox('That language is not supported by your browser’s speech engine. Try another one.');
+          showToast('Unsupported language', 'error');
+        } else if (code === 'network') {
+          alertBox('The browser’s speech service is unreachable. Dictation needs a short-lived connection to your browser vendor’s recognition service — check your connection and try again.');
+          showToast('Speech service unreachable', 'error');
+        } else {
+          showToast('Speech recognition error: ' + code, 'error');
+        }
+        if (fatal) { stopInternal(true); }
+      });
+      r.addEventListener('end', () => {
+        if (state === 'listening' && !fatal) {
+          failureGuard();
+          restartTimer = setTimeout(() => {
+            if (state !== 'listening' || fatal) return;
+            try { rec.start(); } catch (e) { /* already restarting */ }
+          }, 350);
+          return;
+        }
+        if (state !== 'idle') state = 'idle';
+        setPill(fatal ? 'warn' : 'idle', fatal ? 'Microphone unavailable' : 'Microphone idle');
+        setButton(false, false);
+        timer(false);
+      });
+      return r;
+    }
+    function failureGuard() {
+      failures++;
+      if (failures > 8) {
+        fatal = true;
+        alertBox('Dictation kept stopping. This usually means another app is holding the microphone, or the speech service is unavailable. Reload the page and try again.');
+        showToast('Dictation stopped repeatedly', 'error');
+        stopInternal(true);
+      }
+    }
+    function stopInternal(silent) {
+      state = 'idle';
+      if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
+      if (rec) { const r = rec; setTimeout(() => { try { r.stop(); } catch (e) { } }, 0); }
+      setPill(fatal ? 'warn' : 'idle', fatal ? 'Microphone unavailable' : 'Microphone idle');
+      setButton(false, false);
+      timer(false);
+      if (!silent) showToast('Dictation stopped', 'info');
+    }
+    async function start() {
+      if (!supported) {
+        alertBox('Live dictation needs the Web Speech API. Chrome, Edge and Safari support it; Firefox currently does not. Everything else in Paper_cave works everywhere.');
+        showToast('Speech recognition unsupported in this browser', 'error');
+        return;
+      }
+      if (state === 'starting' || state === 'listening') return;
+      state = 'starting';
+      fatal = false;
+      alertBox('');
+      setButton(false, true);
+      setPill('idle', 'Requesting microphone…');
+
+      // Pre-flight permission check gives a precise, actionable error.
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          stream.getTracks().forEach(t => t.stop());
+        } catch (err) {
+          state = 'idle';
+          setButton(false, false);
+          setPill('warn', 'Microphone blocked');
+          if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
+            alertBox('Microphone access was denied. Allow it from your browser’s address bar (the mic or lock icon). If Paper_cave is embedded in a frame, open it in its own tab — frames need explicit microphone permission.');
+          } else if (err && err.name === 'NotFoundError') {
+            alertBox('No microphone was found on this device. Connect one and try again.');
+          } else {
+            alertBox('Could not open the microphone: ' + ((err && err.message) || 'unknown error'));
+          }
+          showToast('Could not start dictation', 'error');
+          return;
+        }
+      }
+
+      if (!rec) { rec = build(); if (!rec) { state = 'idle'; setButton(false, false); return; } }
+      rec.lang = $('voiceLangSelect').value;
+      rec.continuous = true;
+      rec.interimResults = true;
+      state = 'listening';
+      try {
+        rec.start();
+      } catch (err) {
+        if (err && err.name === 'InvalidStateError') {
+          // already running — treat as success
+        } else {
+          state = 'idle';
+          setButton(false, false);
+          setPill('warn', 'Could not start');
+          fail('Starting dictation', err);
+        }
+      }
+      setTimeout(() => { if (state === 'starting') state = 'listening'; }, 1200);
+    }
+
+    textarea.addEventListener('input', () => {
+      if (writing) return;
+      committed = textarea.value;
+      interimText = '';
+      updateTranscriptStats();
+    });
+    $('startVoiceBtn').addEventListener('click', () => { (state === 'listening' || state === 'starting') ? stopInternal(false) : start(); });
+    $('voiceLangSelect').addEventListener('change', () => {
+      if (state === 'listening' && rec) { try { rec.stop(); } catch (e) { } }
+    });
+
+    if (!supported) {
+      alertBox('Live dictation needs the Web Speech API. Chrome, Edge and Safari support it; Firefox currently does not. Every other Paper_cave tool works in all modern browsers.');
+      const b = $('startVoiceBtn');
+      b.disabled = true;
+      b.className = 'btn btn-ghost px-5 py-2.5 text-xs';
+      setPill('warn', 'Unsupported browser');
+    }
+    return { supported: supported };
+  })();
+
+  function updateTranscriptStats() {
+    const text = $('transcriptTextarea').value.trim();
+    $('charCount').textContent = text.length;
+    $('wordCount').textContent = text ? text.split(/\s+/).length : 0;
+  }
+  updateTranscriptStats();
+  function copyTranscript() {
+    const text = $('transcriptTextarea').value;
+    if (!text.trim()) { showToast('The transcript is empty', 'error'); return; }
+    const ok = () => showToast('Transcript copied to clipboard', 'success');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok).catch(() => fallback());
+    } else { fallback(); }
+    function fallback() {
+      const t = $('transcriptTextarea'); t.select();
+      try { document.execCommand('copy'); ok(); } catch (e) { showToast('Copy failed — select and copy manually', 'error'); }
+    }
+  }
+  function downloadTranscript() {
+    const text = $('transcriptTextarea').value;
+    if (!text.trim()) { showToast('Nothing to download yet', 'error'); return; }
+    downloadBlob(new Blob([text], { type: 'text/plain;charset=utf-8' }), 'Paper_cave_transcript.txt');
+    showToast('Transcript saved', 'success');
+  }
+  function clearTranscript() {
+    $('transcriptTextarea').value = '';
+    updateTranscriptStats();
+    showToast('Transcript cleared', 'info');
+  }
+
+  /* ======================================================================
+     MEDIA TRIMMER with dual-handle timeline
+     ====================================================================== */
+  const Media = (function () {
+    let file = null, isVideo = false, duration = 0;
+    let trimStart = 0, trimEnd = 0, dragging = null, previewUntil = 0;
+    const MIN_GAP = 0.1;
+    let raf = null;
+
+    const tl = () => $('trimTimeline');
+    const el = () => isVideo ? $('videoPreview') : $('audioPreview');
+    const fmt = (t) => (t || 0).toFixed(1) + 's';
+
+    function render() {
+      if (!duration) return;
+      const sp = clamp(trimStart / duration, 0, 1) * 100;
+      const ep = clamp(trimEnd / duration, 0, 1) * 100;
+      $('trimSelection').style.left = sp + '%';
+      $('trimSelection').style.width = Math.max(0, ep - sp) + '%';
+      $('tlDimLeft').style.left = '0%'; $('tlDimLeft').style.width = sp + '%';
+      $('tlDimRight').style.left = ep + '%'; $('tlDimRight').style.width = (100 - ep) + '%';
+      $('trimHandleStart').style.left = sp + '%';
+      $('trimHandleEnd').style.left = ep + '%';
+      const hs = $('trimHandleStart'), he = $('trimHandleEnd');
+      hs.setAttribute('aria-valuemax', duration.toFixed(1));
+      he.setAttribute('aria-valuemax', duration.toFixed(1));
+      hs.setAttribute('aria-valuenow', trimStart.toFixed(1));
+      he.setAttribute('aria-valuenow', trimEnd.toFixed(1));
+      $('startTimeInput').value = trimStart.toFixed(1);
+      $('endTimeInput').value = trimEnd.toFixed(1);
+      $('selectedClipDuration').textContent = fmt(Math.max(0, trimEnd - trimStart));
+    }
+    function paintPlayhead(t) {
+      const p = duration ? clamp(t / duration, 0, 1) * 100 : 0;
+      $('trimPlayhead').style.left = p + '%';
+      $('tlCurrentLabel').textContent = fmt(t);
+    }
+    function loop() {
+      const m = el();
+      if (m && !m.paused) {
+        paintPlayhead(m.currentTime);
+        if (previewUntil && m.currentTime >= previewUntil) {
+          previewUntil = 0; m.pause();
+        }
+      }
+      raf = requestAnimationFrame(loop);
+    }
+    function setStart(v) { trimStart = clamp(v, 0, Math.max(0, trimEnd - MIN_GAP)); render(); }
+    function setEnd(v) { trimEnd = clamp(v, trimStart + MIN_GAP, duration); render(); }
+
+    function seek(t) { const m = el(); if (m && isFinite(t)) { try { m.currentTime = clamp(t, 0, duration); } catch (e) { } } }
+
+    function bind(elmt) {
+      elmt.addEventListener('timeupdate', () => paintPlayhead(elmt.currentTime));
+      elmt.addEventListener('seeked', () => paintPlayhead(elmt.currentTime));
+      elmt.addEventListener('ended', () => paintPlayhead(elmt.currentTime));
+    }
+    function load(f) {
+      file = f; isVideo = (f.type || '').startsWith('video/');
+      const url = URL.createObjectURL(f);
+      const v = $('videoPreview'), a = $('audioPreview');
+      $('mediaWorkplace').classList.remove('hidden');
+      $('mediaFileName').textContent = '· ' + f.name;
+      [v, a].forEach(x => { x.pause(); x.removeAttribute('src'); x.load(); });
+      const onMeta = () => {
+        duration = isFinite(el().duration) ? el().duration : 0;
+        if (!duration) { mediaLoadFailed(); return; }
+        $('totalMediaDuration').textContent = fmt(duration);
+        trimStart = 0; trimEnd = duration; render(); paintPlayhead(0);
+        if (!raf) raf = requestAnimationFrame(loop);
+        $('mediaDropZone').classList.add('hidden');
+        showToast('Loaded ' + f.name + ' (' + duration.toFixed(1) + 's)', 'success');
+      };
+      if (isVideo) { a.classList.add('hidden'); v.classList.remove('hidden'); v.src = url; bind(v); v.onloadedmetadata = onMeta; v.onerror = function () { mediaLoadFailed(); }; }
+      else { v.classList.add('hidden'); a.classList.remove('hidden'); a.src = url; bind(a); a.onloadedmetadata = onMeta; a.onerror = function () { mediaLoadFailed(); }; }
+    }
+    function mediaLoadFailed() {
+      duration = 0;
+      $('mediaWorkplace').classList.add('hidden');
+      $('mediaDropZone').classList.remove('hidden');
+      showToast('That file could not be decoded in this browser — try an MP4/WebM video or MP3/WAV audio.', 'error');
+    }
+
+    /* ----- handle dragging ----- */
+    function down(e, which) {
+      e.preventDefault(); e.stopPropagation();
+      dragging = which;
+      const h = e.currentTarget;
+      try { h.setPointerCapture(e.pointerId); } catch (err) { }
+      h.classList.add('is-dragging');
+      document.body.classList.add('is-trimming');
+    }
+    function move(e) {
+      if (!dragging || !duration) return;
+      const rect = tl().getBoundingClientRect();
+      const ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+      const t = ratio * duration;
+      if (dragging === 'start') setStart(t); else setEnd(t);
+      paintPlayhead(t);
+    }
+    function up(e) {
+      if (!dragging) return;
+      const which = dragging; dragging = null;
+      document.body.classList.remove('is-trimming');
+      qsa('.tl-handle').forEach(h => h.classList.remove('is-dragging'));
+      seek(which === 'start' ? trimStart : trimEnd);
+    }
+    function init() {
+      [['trimHandleStart', 'start'], ['trimHandleEnd', 'end']].forEach(([id, which]) => {
+        const h = $(id);
+        h.addEventListener('pointerdown', e => down(e, which));
+        h.addEventListener('pointermove', move);
+        h.addEventListener('pointerup', up);
+        h.addEventListener('pointercancel', up);
+        h.addEventListener('keydown', e => {
+          const stepSize = e.shiftKey ? 1 : 0.1;
+          if (e.key === 'ArrowLeft') { e.preventDefault(); which === 'start' ? setStart(trimStart - stepSize) : setEnd(trimEnd - stepSize); }
+          if (e.key === 'ArrowRight') { e.preventDefault(); which === 'start' ? setStart(trimStart + stepSize) : setEnd(trimEnd + stepSize); }
+        });
+      });
+      tl().addEventListener('pointerdown', (e) => {
+        if (e.target.classList.contains('tl-handle')) return;
+        if (!duration) return;
+        const rect = tl().getBoundingClientRect();
+        const t = clamp((e.clientX - rect.left) / rect.width, 0, 1) * duration;
+        seek(t); paintPlayhead(t);
+      });
+      $('startTimeInput').addEventListener('change', e => setStart(parseFloat(e.target.value) || 0));
+      $('endTimeInput').addEventListener('change', e => setEnd(parseFloat(e.target.value) || 0));
+      $('setStartBtn').addEventListener('click', () => { const m = el(); if (m) setStart(m.currentTime); });
+      $('setEndBtn').addEventListener('click', () => { const m = el(); if (m) setEnd(m.currentTime); });
+      $('selectAllBtn').addEventListener('click', () => { trimStart = 0; trimEnd = duration; render(); showToast('Full clip selected', 'info'); });
+      $('previewSelectionBtn').addEventListener('click', () => {
+        const m = el(); if (!m || !duration) return;
+        m.currentTime = trimStart; previewUntil = trimEnd;
+        m.play().catch(() => { });
+      });
+      $('trimActionBtn').addEventListener('click', runTrim);
+    }
+
+    async function runTrim() {
+      if (!file || !duration) { showToast('Load a file first', 'error'); return; }
+      if (trimEnd - trimStart < MIN_GAP) { showToast('Select a longer range', 'error'); return; }
+      const m = el(); if (m) m.pause();
+      setWork('Trimming clip locally…');
+      try {
+        if (!isVideo) await sliceAudio(file, trimStart, trimEnd);
+        else await recordVideo(trimStart, trimEnd);
+      } catch (err) { fail('Trimming', err); }
+      finally { clearWork(); }
+    }
+    async function sliceAudio(f, s, e) {
+      const buf = await f.arrayBuffer();
+      const AC = window.AudioContext || window.webkitAudioContext;
+      const actx = new AC();
+      const decoded = await actx.decodeAudioData(buf);
+      const sr = decoded.sampleRate;
+      const startF = Math.max(0, Math.floor(s * sr));
+      const endF = Math.min(decoded.length, Math.floor(e * sr));
+      const frames = Math.max(1, endF - startF);
+      const out = actx.createBuffer(decoded.numberOfChannels, frames, sr);
+      for (let c = 0; c < decoded.numberOfChannels; c++) {
+        const src = decoded.getChannelData(c), dst = out.getChannelData(c);
+        for (let i = 0; i < frames; i++) dst[i] = src[startF + i] || 0;
+      }
+      downloadBlob(wavBlob(out), baseName(f.name) + '_trimmed.wav');
+      if (actx.close) actx.close();
+      showToast('Audio clip exported as WAV', 'success');
+    }
+    function wavBlob(buf) {
+      const chans = buf.numberOfChannels;
+      const length = buf.length * chans * 2 + 44;
+      const ab = new ArrayBuffer(length), view = new DataView(ab);
+      let pos = 0;
+      const u16 = d => { view.setUint16(pos, d, true); pos += 2; };
+      const u32 = d => { view.setUint32(pos, d, true); pos += 4; };
+      u32(0x46464952); u32(length - 8); u32(0x45564157); u32(0x20746d66); u32(16);
+      u16(1); u16(chans); u32(buf.sampleRate); u32(buf.sampleRate * 2 * chans); u16(chans * 2); u16(16);
+      u32(0x61746164); u32(length - pos - 4);
+      const data = [];
+      for (let i = 0; i < chans; i++) data.push(buf.getChannelData(i));
+      let off = 0;
+      while (pos < length) {
+        for (let i = 0; i < chans; i++) {
+          let s = Math.max(-1, Math.min(1, data[i][off]));
+          view.setInt16(pos, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+          pos += 2;
+        }
+        off++;
+      }
+      return new Blob([ab], { type: 'audio/wav' });
+    }
+    function recordVideo(s, e) {
+      return new Promise((resolve, reject) => {
+        const v = $('videoPreview');
+        try {
+          const stream = v.captureStream ? v.captureStream() : (v.mozCaptureStream ? v.mozCaptureStream() : null);
+          if (!stream) { reject(new Error('Your browser cannot capture video streams')); return; }
+          let mime = 'video/webm;codecs=vp9';
+          if (window.MediaRecorder && MediaRecorder.isTypeSupported && !MediaRecorder.isTypeSupported(mime)) mime = 'video/webm';
+          const rec = new MediaRecorder(stream, { mimeType: mime });
+          const chunks = [];
+          rec.ondataavailable = ev => { if (ev.data && ev.data.size) chunks.push(ev.data); };
+          rec.onstop = () => {
+            downloadBlob(new Blob(chunks, { type: 'video/webm' }), 'Paper_cave_clip.webm');
+            showToast('Video clip exported as WebM', 'success');
+            resolve();
+          };
+          rec.onerror = err => reject(err.error || new Error('Recording failed'));
+          v.currentTime = s;
+          v.onseeked = function () {
+            v.onseeked = null;
+            v.muted = false;
+            v.play().then(() => {
+              setWork('Recording clip in real time…');
+              rec.start();
+              const check = setInterval(() => {
+                if (v.currentTime >= e || v.ended) { clearInterval(check); try { rec.stop(); } catch (x) { } v.pause(); }
+              }, 80);
+            }).catch(reject);
+          };
+        } catch (err) { reject(err); }
+      });
+    }
+    return { load: load, init: init };
+  })();
+
+  /* ======================================================================
+     PDF TOOLKIT
+     ====================================================================== */
+  const PDFLibReady = () => (typeof PDFLib !== 'undefined' && PDFLib.PDFDocument);
+  const needPdfjs = () => { if (typeof pdfjsLib === 'undefined') { showToast('The PDF rendering engine did not load. Check your connection and reload.', 'error'); return false; } return true; };
+  const needZip = () => { if (typeof JSZip === 'undefined') { showToast('The ZIP engine did not load. Check your connection and reload.', 'error'); return false; } return true; };
+  const pdfStore = {};
+  let pdfMergeFiles = [], pdfFromImgFiles = [], currentPdfTool = 'merge';
+
+  function switchPdfTool(key) {
+    currentPdfTool = key;
+    qsa('.pdf-tool-card').forEach(c => c.classList.toggle('is-active', c.dataset.pdfTool === key));
+    qsa('.pdf-panel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== key));
+    const panel = document.querySelector('.pdf-panel[data-panel="' + key + '"]');
+    if (panel) { panel.classList.remove('tool-enter'); void panel.offsetWidth; panel.classList.add('tool-enter'); }
+  }
+
+  function wireZone(zone, handler) {
+    if (!zone) return;
+    const input = zone.querySelector('input[type="file"]');
+    if (input) {
+      input.addEventListener('change', () => {
+        const files = Array.from(input.files || []);
+        input.value = '';
+        if (files.length) handler(files);
+      });
+    }
+    zone.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      if (input) input.click();
+    });
+    zone.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && input) { e.preventDefault(); input.click(); }
+    });
+    let depth = 0;
+    ['dragenter', 'dragover'].forEach(ev => zone.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); depth++; zone.classList.add('drag-active'); }));
+    zone.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); depth = Math.max(0, depth - 1); if (!depth) zone.classList.remove('drag-active'); });
+    zone.addEventListener('drop', (e) => {
+      e.preventDefault(); e.stopPropagation(); depth = 0; zone.classList.remove('drag-active');
+      const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+      if (files.length) handler(files);
+    });
+  }
+
+  function renderFileList(container, items, onMove, onRemove) {
+    container.innerHTML = '';
+    items.forEach((f, i) => {
+      const row = document.createElement('div');
+      row.className = 'file-row';
+      row.innerHTML =
+        '<span class="fr-idx">' + String(i + 1).padStart(2, '0') + '</span>' +
+        '<span class="fr-name" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + '</span>' +
+        '<span class="fr-size">' + formatBytes(f.size) + '</span>' +
+        '<span class="fr-actions">' +
+        '<button class="ic-btn" data-act="up" aria-label="Move up"' + (i === 0 ? ' disabled' : '') + '><i class="fa-solid fa-arrow-up"></i></button>' +
+        '<button class="ic-btn" data-act="down" aria-label="Move down"' + (i === items.length - 1 ? ' disabled' : '') + '><i class="fa-solid fa-arrow-down"></i></button>' +
+        '<button class="ic-btn danger" data-act="rm" aria-label="Remove"><i class="fa-solid fa-trash"></i></button>' +
+        '</span>';
+      row.querySelector('[data-act="up"]').addEventListener('click', () => onMove(i, -1));
+      row.querySelector('[data-act="down"]').addEventListener('click', () => onMove(i, 1));
+      row.querySelector('[data-act="rm"]').addEventListener('click', () => onRemove(i));
+      container.appendChild(row);
+    });
+  }
+  function swap(arr, index, dir) {
+    const t = index + dir;
+    if (t >= 0 && t < arr.length) { const tmp = arr[index]; arr[index] = arr[t]; arr[t] = tmp; }
+  }
+
+  /* ----- shared single-file loading ----- */
+  async function pdfFilesPicked(key, files) {
+    if (key === 'merge') {
+      const pdfs = files.filter(isPdfFile);
+      if (!pdfs.length) { showToast('Please choose PDF files', 'error'); return; }
+      pdfMergeFiles = pdfMergeFiles.concat(pdfs);
+      $('mergeListWrap').classList.remove('hidden');
+      $('pdfFileCount').textContent = pdfMergeFiles.length;
+      renderMerge();
+      return;
+    }
+    if (key === 'fromimg') {
+      const imgs = files.filter(f => (f.type || '').startsWith('image/'));
+      if (!imgs.length) { showToast('Please choose image files', 'error'); return; }
+      pdfFromImgFiles = pdfFromImgFiles.concat(imgs);
+      renderFromImg();
+      if (pdfFromImgFiles.length) $('body-fromimg').classList.remove('hidden');
+      return;
+    }
+    const f = files[0];
+    if (!isPdfFile(f)) { showToast('That file is not a PDF', 'error'); return; }
+    await pdfLoadSingle(key, f);
+  }
+  function renderMerge() {
+    $('mergeListWrap').classList.toggle('hidden', pdfMergeFiles.length === 0);
+    $('pdfFileCount').textContent = pdfMergeFiles.length;
+    renderFileList($('pdfItemsContainer'), pdfMergeFiles,
+      (i, d) => { swap(pdfMergeFiles, i, d); renderMerge(); },
+      (i) => { pdfMergeFiles.splice(i, 1); renderMerge(); });
+  }
+  function clearMergeList() { pdfMergeFiles = []; renderMerge(); }
+  function removeMerge() { }
+  function renderFromImg() {
+    $('fromImgListWrap').classList.toggle('hidden', pdfFromImgFiles.length === 0);
+    $('fromImgCount').textContent = pdfFromImgFiles.length;
+    renderFileList($('fromImgItems'), pdfFromImgFiles,
+      (i, d) => { swap(pdfFromImgFiles, i, d); renderFromImg(); },
+      (i) => { pdfFromImgFiles.splice(i, 1); renderFromImg(); });
+  }
+  function clearFromImgList() { pdfFromImgFiles = []; renderFromImg(); $('body-fromimg').classList.add('hidden'); }
+
+  async function pdfLoadSingle(key, file) {
+    if (!PDFLibReady()) { showToast('pdf-lib did not load — reload the page and try again.', 'error'); return; }
+    try {
+      setWork('Reading ' + file.name + '…');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const doc = await PDFLib.PDFDocument.load(bytes.slice());
+      const pages = doc.getPageCount();
+      pdfStore[key] = { file: file, bytes: bytes, pages: pages };
+      const chip = $('chip-' + key);
+      if (chip) {
+        chip.querySelector('.fc-name').textContent = file.name;
+        chip.querySelector('.fc-meta').textContent = formatBytes(file.size) + ' · ' + pages + ' page' + (pages === 1 ? '' : 's');
+        chip.classList.remove('hidden');
+      }
+      const dz = $('dz-' + key); if (dz) dz.classList.add('hidden');
+      const body = $('body-' + key); if (body) body.classList.remove('hidden');
+      if (key === 'split') {
+        $('splitTotalPages').textContent = pages + (pages === 1 ? ' page' : ' pages');
+        $('splitRangeInput').value = '1-' + Math.min(3, pages);
+        $('splitPagesPerFile').value = 1;
+      }
+      if (key === 'organize') await organizeLoad();
+      showToast('Loaded ' + pages + ' page' + (pages === 1 ? '' : 's'), 'success');
+    } catch (err) {
+      const msg = (err && err.message) || '';
+      if (/encrypted/i.test(msg)) {
+        showToast('This PDF is password-protected. Use the Unlock PDF tool first.', 'error');
+      } else {
+        fail('Opening the PDF', err);
+      }
+    } finally { clearWork(); }
+  }
+
+  function pdfReset(key) {
+    delete pdfStore[key];
+    const chip = $('chip-' + key); if (chip) chip.classList.add('hidden');
+    const body = $('body-' + key); if (body) body.classList.add('hidden');
+    const dz = $('dz-' + key); if (dz) dz.classList.remove('hidden');
+    if (key === 'tojpg') $('jpgPreview').classList.add('hidden');
+    if (key === 'compress') $('cmpResult').classList.add('hidden');
+    if (key === 'extract') $('exResult').classList.add('hidden');
+    if (key === 'organize') { orgGridClear(); }
+  }
+  function orgGridClear() { const g = $('orgGrid'); if (g) g.innerHTML = ''; }
+
+  /* ----- 1. MERGE ----- */
+  async function runMerge() {
+    if (pdfMergeFiles.length < 2) { showToast('Add at least two PDF files to merge', 'error'); return; }
+    if (!PDFLibReady()) { showToast('pdf-lib did not load', 'error'); return; }
+    try {
+      setWork('Merging documents…');
+      const merged = await PDFLib.PDFDocument.create();
+      for (const f of pdfMergeFiles) {
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        const doc = await PDFLib.PDFDocument.load(bytes);
+        const copied = await merged.copyPages(doc, doc.getPageIndices());
+        copied.forEach(p => merged.addPage(p));
+      }
+      const out = await merged.save();
+      downloadBlob(new Blob([out], { type: 'application/pdf' }), 'Paper_cave_merged.pdf');
+      showToast('Merged ' + pdfMergeFiles.length + ' files', 'success');
+    } catch (err) { fail('Merging', err); } finally { clearWork(); }
+  }
+
+  /* ----- 2. SPLIT ----- */
+  function setSplitTab(tab) {
+    qsa('[data-split-tab]').forEach(b => b.classList.toggle('is-active', b.dataset.splitTab === tab));
+    qsa('[data-split-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.splitPanel !== tab));
+  }
+  function parseRanges(str, max) {
+    const set = new Set();
+    String(str || '').split(',').forEach(part => {
+      part = part.trim();
+      if (!part) return;
+      if (part.indexOf('-') > -1) {
+        const bits = part.split('-').map(x => parseInt(x, 10));
+        const a = bits[0], b = bits[1];
+        if (isNaN(a) || isNaN(b)) return;
+        const lo = Math.max(1, Math.min(a, b)), hi = Math.min(max, Math.max(a, b));
+        for (let i = lo; i <= hi; i++) set.add(i - 1);
+      } else {
+        const n = parseInt(part, 10);
+        if (!isNaN(n) && n >= 1 && n <= max) set.add(n - 1);
+      }
+    });
+    return Array.from(set).sort((a, b) => a - b);
+  }
+  async function runSplitExtract() {
+    const st = pdfStore.split;
+    if (!st) { showToast('Load a PDF first', 'error'); return; }
+    const idx = parseRanges($('splitRangeInput').value, st.pages);
+    if (!idx.length) { showToast('Enter a valid page range, e.g. 1, 3-5', 'error'); return; }
+    try {
+      setWork('Extracting pages…');
+      const src = await PDFLib.PDFDocument.load(st.bytes.slice());
+      const out = await PDFLib.PDFDocument.create();
+      const copied = await out.copyPages(src, idx);
+      copied.forEach(p => out.addPage(p));
+      const bytes = await out.save();
+      downloadBlob(new Blob([bytes], { type: 'application/pdf' }), baseName(st.file.name) + '_extracted.pdf');
+      showToast('Extracted ' + idx.length + ' page' + (idx.length === 1 ? '' : 's'), 'success');
+    } catch (err) { fail('Extracting pages', err); } finally { clearWork(); }
+  }
+  async function runSplitFiles() {
+    const st = pdfStore.split;
+    if (!st) { showToast('Load a PDF first', 'error'); return; }
+    if (!needZip()) return;
+    const mode = $('splitModeSelect').value;
+    let groups = [];
+    if (mode === 'fixed') {
+      const n = Math.max(1, parseInt($('splitPagesPerFile').value, 10) || 1);
+      for (let i = 0; i < st.pages; i += n) {
+        const arr = []; for (let j = i; j < Math.min(i + n, st.pages); j++) arr.push(j);
+        groups.push(arr);
+      }
+    } else {
+      const parts = $('splitRangesInput').value.split(',').map(s => s.trim()).filter(Boolean);
+      groups = parts.map(p => parseRanges(p, st.pages)).filter(a => a.length);
+    }
+    if (!groups.length) { showToast('Nothing to split — check your settings', 'error'); return; }
+    try {
+      const zip = new JSZip();
+      const src = await PDFLib.PDFDocument.load(st.bytes.slice());
+      const base = baseName(st.file.name);
+      for (let g = 0; g < groups.length; g++) {
+        setWork('Building file ' + (g + 1) + ' of ' + groups.length + '…');
+        const out = await PDFLib.PDFDocument.create();
+        const copied = await out.copyPages(src, groups[g]);
+        copied.forEach(p => out.addPage(p));
+        const bytes = await out.save();
+        const label = groups[g].length === 1 ? ('page-' + (groups[g][0] + 1)) : ('pages-' + (groups[g][0] + 1) + '-' + (groups[g][groups[g].length - 1] + 1));
+        zip.file(base + '_' + label + '.pdf', bytes);
+      }
+      setWork('Packaging ZIP…');
+      const blob = await zip.generateAsync({ type: 'blob' });
+      downloadBlob(blob, base + '_split.zip');
+      showToast('Created ' + groups.length + ' files in a ZIP', 'success');
+    } catch (err) { fail('Splitting', err); } finally { clearWork(); }
+  }
+
+  /* ----- 3. ORGANIZE ----- */
+  let orgPages = [], orgPdfjs = null, orgBytes = null, orgDragIndex = null;
+  function organizeLoad() {
+    const st = pdfStore.organize;
+    if (!st) return Promise.resolve();
+    if (!needPdfjs()) return Promise.resolve();
+    orgBytes = st.bytes;
+    orgPages = [];
+    return (async () => {
+      try {
+        setWork('Rendering page thumbnails…');
+        orgPdfjs = await pdfjsOpen(st.bytes);
+        for (let i = 1; i <= orgPdfjs.numPages; i++) orgPages.push({ no: i, rot: 0, del: false });
+        await orgRender();
+        orgSummary();
+      } catch (err) { fail('Rendering thumbnails', err); }
+      finally { clearWork(); }
+    })();
+  }
+  function orgSummary() {
+    const kept = orgPages.filter(p => !p.del).length;
+    $('orgSummary').textContent = kept + ' of ' + orgPages.length + ' pages kept';
+  }
+  async function orgRender() {
+    const grid = $('orgGrid');
+    grid.innerHTML = '';
+    for (let i = 0; i < orgPages.length; i++) {
+      const p = orgPages[i];
+      const card = document.createElement('div');
+      card.className = 'thumb-card' + (p.del ? ' is-deleted' : '');
+      card.draggable = true;
+      card.dataset.idx = i;
+      card.innerHTML =
+        '<span class="tc-num">' + p.no + '</span>' +
+        '<div class="tc-canvas-wrap"><canvas></canvas></div>' +
+        '<div class="tc-tools">' +
+        '<button class="ic-btn" data-a="left" aria-label="Rotate left"><i class="fa-solid fa-rotate-left"></i></button>' +
+        '<button class="ic-btn" data-a="right" aria-label="Rotate right"><i class="fa-solid fa-rotate-right"></i></button>' +
+        '<button class="ic-btn" data-a="mvL" aria-label="Move left"><i class="fa-solid fa-chevron-left"></i></button>' +
+        '<button class="ic-btn" data-a="mvR" aria-label="Move right"><i class="fa-solid fa-chevron-right"></i></button>' +
+        '<button class="ic-btn danger" data-a="del" aria-label="' + (p.del ? 'Restore page' : 'Remove page') + '"><i class="fa-solid ' + (p.del ? 'fa-rotate-left' : 'fa-trash') + '"></i></button>' +
+        '</div>';
+      card.querySelector('[data-a="left"]').addEventListener('click', () => { p.rot -= 90; orgPaint(card, p, true); });
+      card.querySelector('[data-a="right"]').addEventListener('click', () => { p.rot += 90; orgPaint(card, p, true); });
+      card.querySelector('[data-a="mvL"]').addEventListener('click', () => { if (i > 0) { const t = orgPages[i - 1]; orgPages[i - 1] = orgPages[i]; orgPages[i] = t; orgRender(); } });
+      card.querySelector('[data-a="mvR"]').addEventListener('click', () => { if (i < orgPages.length - 1) { const t = orgPages[i + 1]; orgPages[i + 1] = orgPages[i]; orgPages[i] = t; orgRender(); } });
+      card.querySelector('[data-a="del"]').addEventListener('click', () => {
+        p.del = !p.del;
+        if (orgPages.filter(x => !x.del).length === 0) { p.del = false; showToast('At least one page must remain', 'error'); return; }
+        orgRender();
+      });
+      card.addEventListener('dragstart', () => { orgDragIndex = i; card.classList.add('is-dragging'); });
+      card.addEventListener('dragend', () => { card.classList.remove('is-dragging'); qsa('.thumb-card').forEach(c => c.classList.remove('drop-target')); });
+      card.addEventListener('dragover', (e) => { e.preventDefault(); card.classList.add('drop-target'); });
+      card.addEventListener('dragleave', () => card.classList.remove('drop-target'));
+      card.addEventListener('drop', (e) => {
+        e.preventDefault(); card.classList.remove('drop-target');
+        if (orgDragIndex === null || orgDragIndex === i) return;
+        const moved = orgPages.splice(orgDragIndex, 1)[0];
+        orgPages.splice(i, 0, moved);
+        orgDragIndex = null;
+        orgRender();
+      });
+      grid.appendChild(card);
+      await orgPaint(card, p, false);
+    }
+    orgSummary();
+  }
+  async function orgPaint(card, p, redrawOnly) {
+    const canvas = card.querySelector('canvas');
+    canvas.style.transform = 'rotate(' + p.rot + 'deg)';
+    if (redrawOnly) { if (p.rot === 0) canvas.style.transform = ''; return; }
+    try {
+      const page = await orgPdfjs.getPage(p.no);
+      const vp1 = page.getViewport({ scale: 1 });
+      const scale = Math.min(150 / vp1.width, 2);
+      const vp = page.getViewport({ scale: scale });
+      canvas.width = Math.max(1, Math.floor(vp.width));
+      canvas.height = Math.max(1, Math.floor(vp.height));
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      page.cleanup();
+    } catch (e) {
+      const ctx = canvas.getContext('2d');
+      canvas.width = 120; canvas.height = 160;
+      ctx.fillStyle = '#e5e7eb'; ctx.fillRect(0, 0, 120, 160);
+    }
+    canvas.style.transform = p.rot === 0 ? '' : 'rotate(' + p.rot + 'deg)';
+  }
+  function orgRotateAll(delta) { orgPages.forEach(p => p.rot += delta); orgRender(); }
+  async function runOrganize() {
+    const st = pdfStore.organize;
+    if (!st) { showToast('Load a PDF first', 'error'); return; }
+    const keep = orgPages.filter(p => !p.del);
+    if (!keep.length) { showToast('No pages left to save', 'error'); return; }
+    try {
+      setWork('Building the new document…');
+      const src = await PDFLib.PDFDocument.load(st.bytes.slice());
+      const out = await PDFLib.PDFDocument.create();
+      const copied = await out.copyPages(src, keep.map(p => p.no - 1));
+      copied.forEach((pg, i) => {
+        let base = 0;
+        try {
+          const r = src.getPage(keep[i].no - 1).getRotation();
+          if (r && typeof r.angle === 'number') base = r.angle;
+        } catch (e) { }
+        const total = ((base + keep[i].rot) % 360 + 360) % 360;
+        pg.setRotation(PDFLib.degrees(total));
+        out.addPage(pg);
+      });
+      const bytes = await out.save();
+      downloadBlob(new Blob([bytes], { type: 'application/pdf' }), baseName(st.file.name) + '_organised.pdf');
+      showToast('Saved ' + keep.length + ' pages', 'success');
+    } catch (err) { fail('Saving the document', err); } finally { clearWork(); }
+  }
+
+  /* ----- 4. PAGE NUMBERS ----- */
+  async function runPageNumbers() {
+    const st = pdfStore.numbers;
+    if (!st) { showToast('Load a PDF first', 'error'); return; }
+    try {
+      setWork('Adding page numbers…');
+      const doc = await PDFLib.PDFDocument.load(st.bytes.slice());
+      const font = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+      const size = clamp(parseInt($('numSize').value, 10) || 11, 6, 48);
+      const margin = clamp(parseInt($('numMargin').value, 10) || 28, 8, 120);
+      const startAt = Math.max(1, parseInt($('numStart').value, 10) || 1);
+      const pos = $('numPosition').value, fmt = $('numFormat').value;
+      const skipFirst = $('numSkipFirst').checked;
+      const pages = doc.getPages(), total = pages.length;
+      const colour = PDFLib.rgb(0.42, 0.45, 0.56);
+      let stamped = 0;
+      pages.forEach((page, i) => {
+        if (skipFirst && i === 0) return;
+        const n = startAt + i;
+        const label = fmt === 'plain' ? String(n) : (fmt === 'page' ? ('Page ' + n) : (n + ' / ' + total));
+        const tw = font.widthOfTextAtSize(label, size);
+        const th = font.heightAtSize(size);
+        const dims = page.getSize();
+        const W = dims.width, H = dims.height;
+        let x = W / 2 - tw / 2, y = margin;
+        if (pos === 'bottom-right') { x = W - margin - tw; }
+        else if (pos === 'bottom-left') { x = margin; }
+        else if (pos === 'top-center') { y = H - margin - th; }
+        else if (pos === 'top-right') { x = W - margin - tw; y = H - margin - th; }
+        else if (pos === 'top-left') { x = margin; y = H - margin - th; }
+        page.drawText(label, { x: x, y: y, size: size, font: font, color: colour });
+        stamped++;
+      });
+      const bytes = await doc.save();
+      downloadBlob(new Blob([bytes], { type: 'application/pdf' }), baseName(st.file.name) + '_numbered.pdf');
+      showToast('Numbered ' + stamped + ' page' + (stamped === 1 ? '' : 's'), 'success');
+    } catch (err) { fail('Adding page numbers', err); } finally { clearWork(); }
+  }
+
+  /* ----- 5. WATERMARK ----- */
+  const WM_COLOURS = {
+    slate: [0.35, 0.40, 0.50],
+    rose: [0.85, 0.28, 0.38],
+    indigo: [0.36, 0.36, 0.85],
+    amber: [0.85, 0.58, 0.11]
+  };
+  async function runWatermark() {
+    const st = pdfStore.watermark;
+    if (!st) { showToast('Load a PDF first', 'error'); return; }
+    const text = $('wmText').value.trim();
+    if (!text) { showToast('Enter watermark text', 'error'); return; }
+    try {
+      setWork('Stamping watermark…');
+      const doc = await PDFLib.PDFDocument.load(st.bytes.slice());
+      const font = await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+      const size = clamp(parseInt($('wmSize').value, 10) || 54, 8, 200);
+      const opacity = clamp(parseInt($('wmOpacity').value, 10) || 18, 4, 60) / 100;
+      const style = $('wmStyle').value;
+      const c = WM_COLOURS[$('wmColor').value] || WM_COLOURS.slate;
+      const colour = PDFLib.rgb(c[0], c[1], c[2]);
+      const tw = font.widthOfTextAtSize(text, size);
+      const th = font.heightAtSize(size);
+      doc.getPages().forEach(page => {
+        const dims = page.getSize();
+        const W = dims.width, H = dims.height;
+        if (style === 'horizontal') {
+          page.drawText(text, { x: W / 2 - tw / 2, y: H / 2 - th / 2, size: size, font: font, color: colour, opacity: opacity });
+          return;
+        }
+        if (style === 'diagonal') {
+          const angle = -32;
+          const a = angle * Math.PI / 180;
+          const x = W / 2 - (tw / 2) * Math.cos(a) + (th / 2) * Math.sin(a);
+          const y = H / 2 - (tw / 2) * Math.sin(a) - (th / 2) * Math.cos(a);
+          page.drawText(text, { x: x, y: y, size: size, font: font, color: colour, opacity: opacity, rotate: PDFLib.degrees(angle) });
+          return;
+        }
+        // tiled
+        const gapX = Math.max(tw + 60, 220), gapY = Math.max(th + 90, 150);
+        const cols = Math.ceil(W / gapX) + 2, rows = Math.ceil(H / gapY) + 2;
+        const offX = (W - (cols - 1) * gapX) / 2, offY = (H - (rows - 1) * gapY) / 2;
+        for (let r = 0; r < rows; r++) {
+          for (let cI = 0; cI < cols; cI++) {
+            const x = offX + cI * gapX + (r % 2 ? gapX / 2 : 0);
+            const y = offY + r * gapY;
+            if (x < -tw || x > W + tw) continue;
+            page.drawText(text, { x: x, y: y, size: size, font: font, color: colour, opacity: opacity * 0.85, rotate: PDFLib.degrees(-22) });
+          }
+        }
+      });
+      const bytes = await doc.save();
+      downloadBlob(new Blob([bytes], { type: 'application/pdf' }), baseName(st.file.name) + '_watermarked.pdf');
+      showToast('Watermark applied', 'success');
+    } catch (err) { fail('Applying the watermark', err); } finally { clearWork(); }
+  }
+
+  /* ----- shared pdf.js helpers ----- */
+  async function pdfjsOpen(bytes, password) {
+    const task = pdfjsLib.getDocument({ data: bytes.slice(0), password: password || undefined });
+    return await task.promise;
+  }
+  async function renderPageToCanvas(pdf, pageNo, scale) {
+    const page = await pdf.getPage(pageNo);
+    const vp1 = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.floor(vp.width));
+    canvas.height = Math.max(1, Math.floor(vp.height));
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    page.cleanup();
+    return { canvas: canvas, w1: vp1.width, h1: vp1.height };
+  }
+  function greyscaleCanvas(canvas) {
+    const ctx = canvas.getContext('2d');
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const g = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0;
+      d[i] = d[i + 1] = d[i + 2] = g;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  /* ----- 6. COMPRESS ----- */
+  async function runCompress() {
+    const st = pdfStore.compress;
+    if (!st) { showToast('Load a PDF first', 'error'); return; }
+    if (!needPdfjs()) return;
+    try {
+      setWork('Opening the document…');
+      const src = await pdfjsOpen(st.bytes);
+      const quality = (parseInt($('cmpQuality').value, 10) || 65) / 100;
+      const scale = parseFloat($('cmpScale').value) || 1.5;
+      const grey = $('cmpGray').checked;
+      const keepSize = $('cmpKeepText').checked;
+      const out = await PDFLib.PDFDocument.create();
+      let total = 0;
+      for (let p = 1; p <= src.numPages; p++) {
+        setWork('Rendering page ' + p + ' of ' + src.numPages + '…');
+        const rendered = await renderPageToCanvas(src, p, scale);
+        if (grey) greyscaleCanvas(rendered.canvas);
+        const blob = await canvasToBlob(rendered.canvas, 'image/jpeg', quality);
+        if (!blob) throw new Error('Could not encode page ' + p);
+        const jpg = new Uint8Array(await blob.arrayBuffer());
+        total += jpg.length;
+        const embedded = await out.embedJpg(jpg);
+        const pw = keepSize ? rendered.w1 : rendered.canvas.width;
+        const ph = keepSize ? rendered.h1 : rendered.canvas.height;
+        const pg = out.addPage([pw, ph]);
+        pg.drawImage(embedded, { x: 0, y: 0, width: pw, height: ph });
+      }
+      setWork('Saving…');
+      const bytes = await out.save();
+      const before = st.file.size, after = bytes.length;
+      const saved = Math.max(0, Math.round(((before - after) / before) * 100));
+      $('cmpResultText').innerHTML =
+        'Original <strong>' + formatBytes(before) + '</strong> → compressed <strong class="text-brand-400">' + formatBytes(after) + '</strong> · ' +
+        (after < before ? ('<span class="text-emerald-400">' + saved + '% smaller</span>') : '<span class="text-amber-400">larger than the original — try a lower resolution</span>');
+      $('cmpResult').classList.remove('hidden');
+      downloadBlob(new Blob([bytes], { type: 'application/pdf' }), baseName(st.file.name) + '_compressed.pdf');
+      showToast('Compressed: ' + formatBytes(before) + ' → ' + formatBytes(after), 'success');
+    } catch (err) { fail('Compressing', err); } finally { clearWork(); }
+  }
+
+  /* ----- 7. PDF -> JPG ----- */
+  async function runToJpg() {
+    const st = pdfStore.tojpg;
+    if (!st) { showToast('Load a PDF first', 'error'); return; }
+    if (!needPdfjs()) return;
+    try {
+      const src = await pdfjsOpen(st.bytes);
+      const scale = parseFloat($('jpgScale').value) || 1.4;
+      const format = $('jpgFormat').value;
+      const quality = (parseInt($('jpgQuality').value, 10) || 85) / 100;
+      const rangeStr = $('jpgPages').value.trim();
+      const pages = rangeStr ? parseRangeOrAll(rangeStr, src.numPages) : null;
+      const list = pages || Array.from({ length: src.numPages }, (_, i) => i + 1);
+      if (!list.length) { showToast('No pages matched that range', 'error'); return; }
+      const ext = format === 'image/png' ? 'png' : 'jpg';
+      const blobs = [], preview = $('jpgPreview');
+      preview.innerHTML = '';
+      for (let i = 0; i < list.length; i++) {
+        setWork('Rendering image ' + (i + 1) + ' of ' + list.length + '…');
+        const rendered = await renderPageToCanvas(src, list[i], scale);
+        const blob = await canvasToBlob(rendered.canvas, format, quality);
+        blobs.push({ blob: blob, name: 'page-' + String(list[i]).padStart(3, '0') + '.' + ext });
+        if (i < 8) {
+          const url = URL.createObjectURL(blob);
+          const wrap = document.createElement('div');
+          wrap.className = 'thumb-card';
+          wrap.innerHTML = '<span class="tc-num">p' + list[i] + '</span><div class="tc-canvas-wrap"><img src="' + url + '" alt="Page ' + list[i] + ' preview"></div>';
+          preview.appendChild(wrap);
+        }
+      }
+      preview.classList.remove('hidden');
+      const base = baseName(st.file.name);
+      if (blobs.length === 1) {
+        downloadBlob(blobs[0].blob, base + '_' + blobs[0].name);
+      } else {
+        if (!needZip()) return;
+        setWork('Packaging ZIP…');
+        const zip = new JSZip();
+        blobs.forEach(b => zip.file(b.name, b.blob));
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        downloadBlob(zipBlob, base + '_images.zip');
+      }
+      showToast('Exported ' + blobs.length + ' image' + (blobs.length === 1 ? '' : 's'), 'success');
+    } catch (err) { fail('Converting to images', err); } finally { clearWork(); }
+  }
+  function parseRangeOrAll(str, max) {
+    const idx = parseRanges(str, max);
+    return idx.map(i => i + 1);
+  }
+
+  /* ----- 8. IMAGES -> PDF ----- */
+  async function runImagesToPdf() {
+    if (!pdfFromImgFiles.length) { showToast('Add at least one image', 'error'); return; }
+    if (!PDFLibReady()) { showToast('pdf-lib did not load', 'error'); return; }
+    try {
+      setWork('Building the PDF…');
+      const doc = await PDFLib.PDFDocument.create();
+      const sizeChoice = $('i2pSize').value;
+      const orient = $('i2pOrient').value;
+      const fit = $('i2pFit').value;
+      const margin = clamp(parseInt($('i2pMargin').value, 10) || 0, 0, 120);
+      const A4 = [595.28, 841.89], LETTER = [612, 792];
+      for (let i = 0; i < pdfFromImgFiles.length; i++) {
+        const f = pdfFromImgFiles[i];
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        let img;
+        try { img = /png$/i.test(f.type || f.name) ? await doc.embedPng(bytes) : await doc.embedJpg(bytes); }
+        catch (e) { img = await doc.embedPng(bytes); }
+        let pw, ph;
+        if (sizeChoice === 'fit') { pw = img.width + margin * 2; ph = img.height + margin * 2; }
+        else {
+          const base = sizeChoice === 'a4' ? A4 : LETTER;
+          const landscape = orient === 'landscape' || (orient === 'auto' && img.width > img.height);
+          pw = landscape ? base[1] : base[0];
+          ph = landscape ? base[0] : base[1];
+        }
+        const page = doc.addPage([pw, ph]);
+        const availW = Math.max(1, pw - margin * 2), availH = Math.max(1, ph - margin * 2);
+        let w, h;
+        if (sizeChoice === 'fit') { w = img.width; h = img.height; }
+        else if (fit === 'cover') { const s = Math.max(availW / img.width, availH / img.height); w = img.width * s; h = img.height * s; }
+        else { const s = Math.min(availW / img.width, availH / img.height); w = img.width * s; h = img.height * s; }
+        page.drawImage(img, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
+      }
+      const bytes = await doc.save();
+      downloadBlob(new Blob([bytes], { type: 'application/pdf' }), 'Paper_cave_images.pdf');
+      showToast('Created a PDF with ' + pdfFromImgFiles.length + ' page' + (pdfFromImgFiles.length === 1 ? '' : 's'), 'success');
+    } catch (err) { fail('Building the PDF', err); } finally { clearWork(); }
+  }
+
+  /* ----- 9. EXTRACT IMAGES ----- */
+  async function runExtractImages() {
+    const st = pdfStore.extract;
+    if (!st) { showToast('Load a PDF first', 'error'); return; }
+    if (!needPdfjs() || !needZip()) return;
+    try {
+      const src = await pdfjsOpen(st.bytes);
+      const zip = new JSZip();
+      const includeFull = $('exFullPages').checked;
+      let embedded = 0, renders = 0;
+      for (let p = 1; p <= src.numPages; p++) {
+        setWork('Scanning page ' + p + ' of ' + src.numPages + '…');
+        const page = await src.getPage(p);
+        let names = [];
+        try {
+          const ops = await page.getOperatorList();
+          for (let i = 0; i < ops.fnArray.length; i++) {
+            if (ops.fnArray[i] === pdfjsLib.OPS.paintImageXObject) {
+              const a = ops.argsArray[i];
+              if (a && typeof a[0] === 'string') names.push(a[0]);
+            }
+          }
+        } catch (e) { }
+        names = Array.from(new Set(names));
+        let perPage = 0;
+        for (let n = 0; n < names.length; n++) {
+          try {
+            const img = await withTimeout(new Promise(res => { try { page.objs.get(names[n], res); } catch (e) { res(null); } }), 4000, 'image timeout');
+            if (!img) continue;
+            const canvas = document.createElement('canvas');
+            if (img.bitmap && img.bitmap.width) {
+              canvas.width = img.bitmap.width; canvas.height = img.bitmap.height;
+              canvas.getContext('2d').drawImage(img.bitmap, 0, 0);
+            } else if (img.width && img.height && img.data) {
+              canvas.width = img.width; canvas.height = img.height;
+              const cx = canvas.getContext('2d');
+              const id = cx.createImageData(img.width, img.height);
+              const src8 = img.data instanceof Uint8ClampedArray || img.data instanceof Uint8Array ? img.data : null;
+              if (!src8) continue;
+              id.data.set(src8.subarray(0, id.data.length));
+              cx.putImageData(id, 0, 0);
+            } else { continue; }
+            const blob = await canvasToBlob(canvas, 'image/png');
+            if (!blob) continue;
+            zip.file('page-' + String(p).padStart(3, '0') + '-image-' + (++perPage) + '.png', blob);
+            embedded++;
+          } catch (e) { /* skip individual image */ }
+        }
+        if (perPage === 0 && includeFull) {
+          const rendered = await renderPageToCanvas(src, p, 1.6);
+          const blob = await canvasToBlob(rendered.canvas, 'image/png');
+          zip.file('page-' + String(p).padStart(3, '0') + '-fullpage.png', blob);
+          renders++;
+        }
+      }
+      const total = embedded + renders;
+      if (!total) { showToast('No images could be extracted from this PDF', 'error'); clearWork(); return; }
+      setWork('Packaging ZIP…');
+      const blob = await zip.generateAsync({ type: 'blob' });
+      downloadBlob(blob, baseName(st.file.name) + '_images.zip');
+      $('exResultText').innerHTML = 'Found <strong>' + embedded + '</strong> embedded image' + (embedded === 1 ? '' : 's') +
+        (renders ? ' plus <strong>' + renders + '</strong> full-page render' + (renders === 1 ? '' : 's') : '') + '.';
+      $('exResult').classList.remove('hidden');
+      showToast('Extracted ' + total + ' image' + (total === 1 ? '' : 's'), 'success');
+    } catch (err) { fail('Extracting images', err); } finally { clearWork(); }
+  }
+
+  /* ----- 10. PROTECT ----- */
+  function looksEncrypted(bytes) {
+    try {
+      const tail = bytes.slice(Math.max(0, bytes.length - 8192));
+      let s = '';
+      for (let i = 0; i < tail.length; i++) s += String.fromCharCode(tail[i]);
+      return s.indexOf('/Encrypt') > -1;
+    } catch (e) { return false; }
+  }
+  async function runProtect() {
+    const st = pdfStore.protect;
+    if (!st) { showToast('Load a PDF first', 'error'); return; }
+    const pw = $('protUserPass').value, pw2 = $('protUserPass2').value;
+    if (pw.length < 4) { showToast('Use a password of at least 4 characters', 'error'); return; }
+    if (pw !== pw2) { showToast('The two passwords do not match', 'error'); return; }
+    try {
+      setWork('Encrypting the document…');
+      const doc = await PDFLib.PDFDocument.load(st.bytes.slice());
+      const owner = $('protOwnerPass').value || (pw + '_paper_cave_owner');
+      const out = await doc.save({
+        userPassword: pw,
+        ownerPassword: owner,
+        permissions: {
+          printing: $('protPrint').checked ? 'highResolution' : 'lowResolution',
+          modifying: $('protModify').checked,
+          copying: $('protCopy').checked,
+          annotating: $('protAnnot').checked,
+          fillingForms: true,
+          contentAccessibility: true,
+          documentAssembly: false
+        }
+      });
+      if (!looksEncrypted(out)) {
+        showToast('This build of pdf-lib could not encrypt the file. Try the Unlock/Vault option in a newer browser.', 'error');
+        return;
+      }
+      downloadBlob(new Blob([out], { type: 'application/pdf' }), baseName(st.file.name) + '_protected.pdf');
+      showToast('PDF encrypted — keep your password safe', 'success');
+    } catch (err) { fail('Encrypting', err); } finally { clearWork(); }
+  }
+
+  /* ----- 11. UNLOCK ----- */
+  async function runUnlock() {
+    const st = pdfStore.unlock;
+    if (!st) { showToast('Load a PDF first', 'error'); return; }
+    const pw = $('unlockPass').value;
+    try {
+      setWork('Removing protection…');
+      let doc = null;
+      if (pw) { try { doc = await PDFLib.PDFDocument.load(st.bytes.slice(), { password: pw }); } catch (e) { doc = null; } }
+      if (!doc) { doc = await PDFLib.PDFDocument.load(st.bytes.slice(), { ignoreEncryption: true }); }
+      const out = await doc.save();
+      const verify = await PDFLib.PDFDocument.load(out.slice());
+      if (!verify.getPageCount()) throw new Error('The output has no readable pages');
+      downloadBlob(new Blob([out], { type: 'application/pdf' }), baseName(st.file.name) + '_unlocked.pdf');
+      showToast('Saved an unprotected copy (' + verify.getPageCount() + ' pages)', 'success');
+    } catch (err) { fail('Unlocking', err); } finally { clearWork(); }
+  }
+
+  /* ======================================================================
+     IMAGE COMPRESSOR
+     ====================================================================== */
+  let currentImgFile = null, currentImgObject = null;
+  function handleImageFiles(files) {
+    const file = files[0];
+    if (!file || !(file.type || '').startsWith('image/')) { showToast('Please choose an image file', 'error'); return; }
+    currentImgFile = file;
+    $('origSizeText').textContent = formatBytes(file.size);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        currentImgObject = img;
+        $('imgWidthInput').value = img.width;
+        $('imgHeightInput').value = img.height;
+        $('origImgPreview').src = ev.target.result;
+        $('imgDropZone').classList.add('hidden');
+        $('imgControls').classList.remove('hidden');
+        processImageCompression();
+      };
+      img.onerror = () => showToast('That image could not be decoded', 'error');
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  function onDimensionChange(type) {
+    if (!currentImgObject) return;
+    const wi = $('imgWidthInput'), hi = $('imgHeightInput');
+    if ($('keepAspectCheck').checked) {
+      const ratio = currentImgObject.width / currentImgObject.height;
+      if (type === 'width') hi.value = Math.max(1, Math.round((parseFloat(wi.value) || 1) / ratio));
+      else wi.value = Math.max(1, Math.round((parseFloat(hi.value) || 1) * ratio));
+    }
+    processImageCompression();
+  }
+  function processImageCompression() {
+    if (!currentImgObject) return;
+    const tw = Math.max(1, parseInt($('imgWidthInput').value, 10) || currentImgObject.width);
+    const th = Math.max(1, parseInt($('imgHeightInput').value, 10) || currentImgObject.height);
+    const canvas = document.createElement('canvas');
+    canvas.width = tw; canvas.height = th;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(currentImgObject, 0, 0, tw, th);
+    const quality = (parseInt($('imgQuality').value, 10) || 80) / 100;
+    const format = $('imgFormat').value;
+    canvas.toBlob((blob) => {
+      if (!blob) { showToast('This browser cannot encode ' + format, 'error'); return; }
+      $('compSizeText').textContent = formatBytes(blob.size);
+      const savedPct = Math.max(0, Math.round(((currentImgFile.size - blob.size) / currentImgFile.size) * 100));
+      $('savedPctText').textContent = savedPct + '%';
+      $('compImgPreview').src = URL.createObjectURL(blob);
+      $('imgDownloadBtn').onclick = () => {
+        const ext = format === 'image/png' ? 'png' : (format === 'image/webp' ? 'webp' : 'jpg');
+        downloadBlob(blob, baseName(currentImgFile.name) + '_paper_cave.' + ext);
+        showToast('Compressed image downloaded', 'success');
+      };
+    }, format, quality);
+  }
+
+  /* ======================================================================
+     INIT
+     ====================================================================== */
+  function init() {
+    // Voice + image + media zones
+    wireZone($('mediaDropZone'), (files) => { Media.load(files[0]); });
+    wireZone($('imgDropZone'), handleImageFiles);
+    Media.init();
+
+    // Generic PDF zones
+    ['merge', 'split', 'organize', 'numbers', 'watermark', 'compress', 'tojpg', 'fromimg', 'extract', 'protect', 'unlock'].forEach(k => {
+      wireZone($('dz-' + k), (files) => pdfFilesPicked(k, files));
+    });
+
+    // Buttons
+    $('mergeRunBtn').addEventListener('click', runMerge);
+    $('splitExtractBtn').addEventListener('click', runSplitExtract);
+    $('splitFilesBtn').addEventListener('click', runSplitFiles);
+    $('splitModeSelect').addEventListener('change', (e) => {
+      const fixed = e.target.value === 'fixed';
+      $('splitFixedWrap').classList.toggle('hidden', !fixed);
+      $('splitRangesWrap').classList.toggle('hidden', fixed);
+    });
+    qsa('[data-split-tab]').forEach(b => b.addEventListener('click', () => setSplitTab(b.dataset.splitTab)));
+    $('orgApplyBtn').addEventListener('click', runOrganize);
+    $('numRunBtn').addEventListener('click', runPageNumbers);
+    $('wmRunBtn').addEventListener('click', runWatermark);
+    $('cmpRunBtn').addEventListener('click', runCompress);
+    $('jpgRunBtn').addEventListener('click', runToJpg);
+    $('i2pRunBtn').addEventListener('click', runImagesToPdf);
+    $('exRunBtn').addEventListener('click', runExtractImages);
+    $('protRunBtn').addEventListener('click', runProtect);
+    $('unlockRunBtn').addEventListener('click', runUnlock);
+    $('numRunBtn').disabled = false;
+    $('jpgRunBtn').disabled = false;
+
+    // Range fill sync
+    [['imgQuality', 'qualityVal', '%'], ['wmOpacity', 'wmOpacityVal', '%'], ['cmpQuality', 'cmpQualityVal', '%'], ['jpgQuality', 'jpgQualityVal', '%']].forEach(([id, outId, suffix]) => {
+      const el = $(id), out = $(outId);
+      if (!el) return;
+      el.addEventListener('input', () => { setRangeFill(el); if (out) out.textContent = el.value + suffix; });
+      el.addEventListener('change', setRangeFill);
+    });
+    const i2p = $('i2pMargin');
+    i2p.addEventListener('input', () => { setRangeFill(i2p); $('i2pMarginVal').textContent = i2p.value + ' pt'; });
+
+    $('imgQuality').addEventListener('change', processImageCompression);
+    $('imgFormat').addEventListener('change', processImageCompression);
+    $('imgWidthInput').addEventListener('change', () => onDimensionChange('width'));
+    $('imgHeightInput').addEventListener('change', () => onDimensionChange('height'));
+    $('keepAspectCheck').addEventListener('change', () => onDimensionChange('width'));
+
+    // FX toggle initial state
+    if (!BG.enabled()) BG.setEnabled(false);
+    else { const t = $('fxToggleText'); if (t) t.textContent = 'Ambient effects: on'; }
+
+    // Kick off a gentle burst so the page feels alive
+    setTimeout(() => { if (BG.enabled()) BG.pulse(); }, 700);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+  </script>
+</body>
+</html>
