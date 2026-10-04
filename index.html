@@ -55,7 +55,7 @@
   <script defer src="/_vercel/insights/script.js"></script>
   <title>Paper_cave — Private In-Browser Tools</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://unpkg.com/@cantoo/pdf-lib@2.11.0/dist/pdf-lib.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2654,7 +2654,10 @@
       setWork('Encrypting the document…');
       const doc = await PDFLib.PDFDocument.load(st.bytes.slice());
       const owner = $('protOwnerPass').value || (pw + '_paper_cave_owner');
-      const out = await doc.save({
+      if (typeof doc.encrypt !== 'function') {
+        throw new Error('The secure PDF encryption engine did not load');
+      }
+      doc.encrypt({
         userPassword: pw,
         ownerPassword: owner,
         permissions: {
@@ -2667,10 +2670,9 @@
           documentAssembly: false
         }
       });
-      if (!looksEncrypted(out)) {
-        showToast('This build of pdf-lib could not encrypt the file. Try the Unlock/Vault option in a newer browser.', 'error');
-        return;
-      }
+      const out = await doc.save();
+      // Verify that the generated file can actually be opened with the password.
+      await PDFLib.PDFDocument.load(out.slice(), { password: pw });
       downloadBlob(new Blob([out], { type: 'application/pdf' }), baseName(st.file.name) + '_protected.pdf');
       showToast('PDF encrypted — keep your password safe', 'success');
     } catch (err) { fail('Encrypting', err); } finally { clearWork(); }
@@ -2683,9 +2685,8 @@
     const pw = $('unlockPass').value;
     try {
       setWork('Removing protection…');
-      let doc = null;
-      if (pw) { try { doc = await PDFLib.PDFDocument.load(st.bytes.slice(), { password: pw }); } catch (e) { doc = null; } }
-      if (!doc) { doc = await PDFLib.PDFDocument.load(st.bytes.slice(), { ignoreEncryption: true }); }
+      if (!pw) { showToast('Enter the PDF password first', 'error'); return; }
+      const doc = await PDFLib.PDFDocument.load(st.bytes.slice(), { password: pw });
       const out = await doc.save();
       const verify = await PDFLib.PDFDocument.load(out.slice());
       if (!verify.getPageCount()) throw new Error('The output has no readable pages');
