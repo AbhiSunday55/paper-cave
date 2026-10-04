@@ -288,8 +288,7 @@
     html.telegram-mini-app .bg-aura,
     html.telegram-mini-app #bgCanvas{ opacity:.55; }
     html.telegram-mini-app .glass-panel{ backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
-    html.telegram-mini-app .ad-slot{ display:none !important; }
-    .mobile-tool-nav{ scrollbar-width:none; }
+        .mobile-tool-nav{ scrollbar-width:none; }
     .mobile-tool-nav::-webkit-scrollbar{ display:none; }
     @media (max-width:1023px){
       .app-shell{ min-height:100dvh; }
@@ -1133,21 +1132,11 @@
             </div>
           </div>
         </section>
-
-        <!-- ============ AD SLOT B - after the tool content (native banner container) ============ -->
-        <div class="ad-slot" aria-label="Advertisement" role="complementary">
-          <span class="ad-label">Sponsored</span>
-          <div class="ad-box">
-            <div class="ad-unit-native">
-              <div id="container-7ce3acb4db7c76c86c34de19c1136b92"></div>
-            </div>
-          </div>
-        </div>
       </main>
 
       <footer class="px-5 sm:px-7 py-4 border-t border-surface-border text-[11px] text-slate-500 flex flex-wrap items-center justify-between gap-2">
-        <span><strong class="text-slate-400">Paper_cave</strong> — your files never leave this device.</span>
-        <span class="flex items-center gap-1.5"><i class="fa-solid fa-bolt text-amber-400"></i> Built with pdf-lib &amp; pdf.js, running fully client-side</span>
+        <span><strong class="text-slate-400">Paper Cave</strong> — your files never leave this device.</span>
+        <span class="flex items-center gap-1.5"><i class="fa-solid fa-bolt text-amber-400"></i> Built with browser PDF engines, running fully client-side</span>
       </footer>
     </div>
   </div>
@@ -2830,9 +2819,6 @@
 
     // Kick off a gentle burst so the page feels alive
     setTimeout(() => { if (BG.enabled()) BG.pulse(); }, 700);
-  }
-    });
-    fitAdFrames();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
