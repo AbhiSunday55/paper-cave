@@ -278,6 +278,9 @@
     .fx-off #bgCanvas{ display:none; }
 
     /* ---------- Telegram + mobile hardening ---------- */
+    #downloadPanel{ padding-bottom:var(--tg-safe-bottom,0px); }
+    #downloadPanel .glass-panel{ background:rgba(7,11,22,.94); }
+
     html.telegram-mini-app,
     html.telegram-mini-app body{ min-height:var(--tg-viewport-height, 100dvh); }
     html.telegram-mini-app body{ padding-bottom:var(--tg-safe-bottom, 0px); }
@@ -1183,29 +1186,67 @@
   }
 
   /* ---------- Misc helpers ---------- */
-  function downloadBlob(blob, filename) {
-    const url = URL.createObjectURL(blob);
+  let lastDownload = { blob: null, filename: '', url: null };
+
+  function presentDownload(blob, filename) {
+    if (!blob) return;
+    if (lastDownload.url) {
+      try { URL.revokeObjectURL(lastDownload.url); } catch (e) {}
+    }
+    lastDownload.blob = blob;
+    lastDownload.filename = filename || 'Paper_cave_output';
+    lastDownload.url = URL.createObjectURL(blob);
+
+    const panel = $('downloadPanel');
+    const name = $('downloadFileName');
+    const share = $('shareOutputBtn');
+    if (name) name.textContent = lastDownload.filename;
+    if (panel) panel.classList.remove('hidden');
+    if (share) {
+      share.classList.toggle('hidden', !(navigator.share && window.File));
+    }
+  }
+
+  function triggerDownload() {
+    const { blob, filename, url } = lastDownload;
+    if (!blob || !url) {
+      showToast('No output file is ready yet', 'error');
+      return;
+    }
+
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
     a.rel = 'noopener';
-    a.target = '_blank';
+    a.style.display = 'none';
     document.body.appendChild(a);
-    try { a.click(); } catch (e) { console.warn('Download click failed:', e); }
-    document.body.removeChild(a);
+    try {
+      a.click();
+      showToast('Download started', 'success');
+    } catch (e) {
+      // Keep the output available instead of failing silently in an embedded WebView.
+      showToast('Use the Share button or open this page in your browser to save the file', 'error');
+    }
+    a.remove();
+  }
 
-    // Some embedded WebViews do not honor the download attribute. Opening the
-    // generated object URL gives the user a browser-native save/share surface.
-    setTimeout(() => {
-      const tg = window.PaperCaveTelegram;
-      if (tg && tg.openLink) {
-        try {
-          // Do not navigate automatically: object URLs are local and Telegram
-          // cannot open them reliably. The normal click above remains the primary path.
-        } catch (e) {}
-      }
-      URL.revokeObjectURL(url);
-    }, 10000);
+  async function shareOutput() {
+    const { blob, filename } = lastDownload;
+    if (!blob || !navigator.share || !window.File) return;
+    try {
+      const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
+      await navigator.share({ files: [file], title: filename });
+      showToast('File shared', 'success');
+    } catch (e) {
+      if (e && e.name !== 'AbortError') showToast('Sharing is not available here', 'error');
+    }
+  }
+
+  function downloadBlob(blob, filename) {
+    // Do not silently download as soon as a tool finishes. In Telegram/WebViews,
+    // automatic downloads are often blocked. Present a clear user-gesture action
+    // that works consistently on desktop, mobile and supported share surfaces.
+    presentDownload(blob, filename);
   }
   function formatBytes(bytes, decimals) {
     if (!bytes) return '0 Bytes';
@@ -1665,7 +1706,7 @@
     const text = $('transcriptTextarea').value;
     if (!text.trim()) { showToast('Nothing to download yet', 'error'); return; }
     downloadBlob(new Blob([text], { type: 'text/plain;charset=utf-8' }), 'Paper_cave_transcript.txt');
-    showToast('Transcript saved', 'success');
+    showToast('Transcript ready — tap Download', 'success');
   }
   function clearTranscript() {
     $('transcriptTextarea').value = '';
@@ -1781,6 +1822,10 @@
       seek(which === 'start' ? trimStart : trimEnd);
     }
     function init() {
+    $('downloadOutputBtn')?.addEventListener('click', triggerDownload);
+    $('shareOutputBtn')?.addEventListener('click', shareOutput);
+    $('dismissDownloadBtn')?.addEventListener('click', () => $('downloadPanel')?.classList.add('hidden'));
+
       [['trimHandleStart', 'start'], ['trimHandleEnd', 'end']].forEach(([id, which]) => {
         const h = $(id);
         h.addEventListener('pointerdown', e => down(e, which));
@@ -2828,5 +2873,24 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
   </script>
+    
+  <!-- Persistent output/download action: works for every converter/editor tool -->
+  <div id="downloadPanel" class="fixed left-3 right-3 bottom-3 z-[100] hidden">
+    <div class="mx-auto max-w-2xl glass-panel border border-white/10 shadow-2xl rounded-2xl p-3 flex items-center gap-3">
+      <div class="min-w-0 flex-1">
+        <div class="text-[10px] uppercase tracking-wider text-slate-400">Ready to download</div>
+        <div id="downloadFileName" class="text-xs sm:text-sm font-semibold text-white truncate">Output file</div>
+      </div>
+      <button id="downloadOutputBtn" class="btn btn-primary px-4 py-2.5 text-xs shrink-0">
+        <i class="fa-solid fa-download"></i><span>Download</span>
+      </button>
+      <button id="shareOutputBtn" class="btn btn-ghost px-3 py-2.5 text-xs shrink-0 hidden" title="Share or save">
+        <i class="fa-solid fa-share-nodes"></i><span class="hidden sm:inline">Share</span>
+      </button>
+      <button id="dismissDownloadBtn" class="ic-btn text-slate-400 hover:text-white shrink-0" aria-label="Close download panel">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+  </div>
 </body>
 </html>
