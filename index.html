@@ -1149,6 +1149,11 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
+  <script>
   'use strict';
   /* ======================================================================
      Paper_cave — private in-browser utility suite
@@ -1200,7 +1205,7 @@
     if (name) name.textContent = lastDownload.filename;
     if (panel) panel.classList.remove('hidden');
     if (share) {
-      share.classList.toggle('hidden', !(navigator.share && window.File));
+      share.classList.toggle('hidden', !(navigator.share && window.File && (!navigator.canShare || navigator.canShare({ files: [new File(['x'], 'x.txt', { type: 'text/plain' })] }))));
     }
   }
 
