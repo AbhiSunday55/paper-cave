@@ -53,7 +53,7 @@
     window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
   </script>
   <script defer src="/_vercel/insights/script.js"></script>
-  <title>Paper_cave — Private In-Browser Tools</title>
+  <title>Paper Cave — Private In-Browser Tools</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@cantoo/pdf-lib@2.11.0/dist/pdf-lib.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -337,20 +337,40 @@
       #bgCanvas{ display:none; }
       *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
     }
-  </style>
-  <style>
-    /* ---------- Ad slots (kept visually separate from the tool UI) ---------- */
-    .ad-slot{ margin:.2rem 0 .4rem; padding:.65rem .8rem; border-radius:18px; background:rgba(9,13,26,.5); border:1px dashed rgba(148,163,184,.2); display:flex; flex-direction:column; align-items:center; gap:.45rem; }
-    .ad-slot .ad-label{ font-size:.56rem; letter-spacing:.16em; text-transform:uppercase; font-weight:700; color:#5c6b8a; }
-    .ad-slot .ad-box{ display:flex; justify-content:center; align-items:center; width:100%; min-height:0; overflow:hidden; }
-    .ad-slot iframe{ border:0 !important; max-width:100%; display:block; margin:0 auto; }
-    .ad-unit-native{ width:100%; min-height:0; display:flex; justify-content:center; align-items:center; overflow:hidden; }
-    .ad-unit-native img,.ad-unit-native iframe{ max-width:100%; }
-    /* An ad network that returns nothing (blocked, unsold, offline) must not leave
-       a dashed hole in the page - the slot hides itself until it has real content. */
-    .ad-slot.is-empty{ display:none; }
-    @media (max-width:520px){ .ad-slot{ padding:.5rem .45rem; } }
-  </style>
+  
+    /* ---------- App-shell polish ---------- */
+    .app-shell > aside{ box-shadow:18px 0 55px -42px rgba(2,6,23,.9); }
+    .tool-content > .glass-panel:first-child{ box-shadow:0 24px 60px -38px rgba(2,6,23,.95), inset 0 1px 0 rgba(255,255,255,.045); }
+    .tool-content{ max-width:1180px; margin:0 auto; width:100%; }
+    .drop-zone{ background:linear-gradient(145deg,rgba(15,23,42,.58),rgba(9,13,26,.42)); }
+    .drop-zone::before{ content:''; position:absolute; inset:8px; border:1px solid rgba(255,255,255,.025); border-radius:12px; pointer-events:none; }
+    .pdf-tool-card{ min-height:112px; }
+    #sidebarNav{ scroll-snap-type:x proximity; }
+    #sidebarNav .nav-btn{ scroll-snap-align:start; }
+    @media (max-width:1023px){
+      .app-shell > aside{ position:sticky; top:0; box-shadow:0 16px 35px -30px rgba(2,6,23,.95); }
+      .app-shell > aside > div:first-child{ display:flex; align-items:center; min-width:0; }
+      .app-shell > aside > div:first-child > div:first-child{ padding:.7rem .75rem; border-bottom:0; flex:0 0 auto; }
+      .app-shell > aside > div:first-child > div:first-child .brand-mark{ padding:.55rem; border-radius:13px; }
+      .app-shell > aside > div:first-child > div:first-child .brand-word{ font-size:1rem; }
+      .app-shell > aside > div:first-child > div:first-child span{ display:none; }
+      #sidebarNav{ flex:1; min-width:0; padding:.55rem .75rem; }
+      #sidebarNav .nav-btn{ min-height:42px; padding:.65rem .8rem; border-radius:13px; }
+    }
+    @media (max-width:640px){
+      .app-shell > aside > div:first-child{ align-items:center; }
+      #sidebarNav .nav-btn span{ display:none; }
+      #sidebarNav .nav-btn{ width:46px; min-width:46px; justify-content:center; padding:.65rem; }
+      #sidebarNav .nav-btn i{ margin:0; width:auto; font-size:1rem; }
+      #sidebarNav{ gap:.4rem; }
+      header{ min-height:64px; }
+      .tool-content{ max-width:none; }
+      .pdf-tool-card{ min-height:104px; }
+      #downloadPanel{ left:.65rem; right:.65rem; bottom:calc(.65rem + var(--tg-safe-bottom,0px)); }
+      #downloadPanel .glass-panel{ padding:.65rem; border-radius:16px; }
+      #downloadPanel #downloadOutputBtn{ min-height:44px; }
+    }
+</style>
 </head>
 <body class="selection:bg-brand-500 selection:text-white">
   <!-- Interactive background layers -->
@@ -370,8 +390,8 @@
             <i class="fa-solid fa-feather-pointed text-white text-lg"></i>
           </div>
           <div class="min-w-0">
-            <h1 class="brand-word font-extrabold text-xl leading-none truncate">Paper_cave</h1>
-            <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-[.16em]">Private Utility Suite</span>
+            <h1 class="brand-word font-extrabold text-xl leading-none truncate">Paper Cave</h1>
+            <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-[.16em]">Private file & media tools</span>
           </div>
         </div>
 
@@ -420,17 +440,6 @@
       </header>
 
       <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
-        <!-- ============ AD SLOT A - below the header (468x60 iframe banner) ============ -->
-        <div class="ad-slot" aria-label="Advertisement" role="complementary">
-          <span class="ad-label">Advertisement</span>
-          <div class="ad-box">
-            <script>
-              atOptions = { 'key' : 'b9dd7f2e4306b9d65d2a6fc6fa4d7fcb', 'format' : 'iframe', 'height' : 60, 'width' : 468, 'params' : {} };
-            </script>
-            <script src="https://www.highrevenueformat.com/b9dd7f2e4306b9d65d2a6fc6fa4d7fcb/invoke.js"></script>
-          </div>
-        </div>
-
         <!-- ============ VOICE ============ -->
         <section id="tool-voice" class="tool-content tool-enter space-y-6">
           <div class="glass-panel rounded-[22px] p-5 sm:p-7">
@@ -1130,7 +1139,6 @@
           <span class="ad-label">Sponsored</span>
           <div class="ad-box">
             <div class="ad-unit-native">
-              <script async="async" data-cfasync="false" src="https://pl31627017.profitableratecpmnetwork.com/7ce3acb4db7c76c86c34de19c1136b92/invoke.js"></script>
               <div id="container-7ce3acb4db7c76c86c34de19c1136b92"></div>
             </div>
           </div>
@@ -2822,51 +2830,7 @@
 
     // Kick off a gentle burst so the page feels alive
     setTimeout(() => { if (BG.enabled()) BG.pulse(); }, 700);
-
-    // Ad slots: keep the fixed-width banner inside the viewport and hide a slot
-    // that the network never filled, so it cannot leave a blank hole.
-    // Polled for ~60s because ad fills arrive asynchronously (often slowly).
-    let adTicks = 0;
-    const adTimer = setInterval(() => { syncAdSlots(); if (++adTicks > 120) clearInterval(adTimer); }, 500);
-    syncAdSlots();
-    window.addEventListener('resize', fitAdFrames, { passive: true });
-    window.addEventListener('load', syncAdSlots);
   }
-
-  /* The Adsterra banner is a fixed 468x60 iframe. On narrow screens that would
-     overflow the layout, so scale it down in place (keeping its centre) instead
-     of letting it push the page wide. */
-  function fitAdFrames() {
-    qsa('.ad-slot iframe').forEach((fr) => {
-      const w = parseInt(fr.getAttribute('width') || '', 10);
-      if (!w || w < 1) return;
-      const box = fr.parentElement;
-      const avail = (box && box.clientWidth) ? box.clientWidth : window.innerWidth;
-      const h = parseInt(fr.getAttribute('height') || '60', 10) || 60;
-      const scale = avail < w ? Math.max(0.4, avail / w) : 1;
-      fr.style.transformOrigin = 'center top';
-      fr.style.transform = scale < 1 ? 'scale(' + scale + ')' : 'none';
-      if (box) box.style.height = scale < 1 ? Math.ceil(h * scale) + 'px' : '';
-    });
-  }
-
-  /* Detect whether a slot actually received an ad. A cross-origin ad <script>
-     cannot be introspected, but the network's product is always either an
-     injected <iframe> or an <img> inside the mount node - so those two are the
-     reliable signal. Anonymous inline scripts are ignored on purpose (the
-     page's own code would otherwise register as an "ad"). */
-  function adSlotHasContent(slot) {
-    return !!slot.querySelector('iframe, img');
-  }
-
-  function syncAdSlots() {
-    qsa('.ad-slot').forEach((slot) => {
-      const filled = adSlotHasContent(slot);
-      slot.classList.toggle('is-empty', !filled);
-      if (filled) {
-        const box = slot.querySelector('.ad-box');
-        if (box) box.style.minHeight = '';
-      }
     });
     fitAdFrames();
   }
