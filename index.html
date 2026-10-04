@@ -2,7 +2,7 @@
 <html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <meta name="description" content="Paper_cave — a private, in-browser utility suite: voice transcription, media trimming, a complete PDF toolkit and image compression. Your files never leave your device.">
   <meta name="theme-color" content="#070b16">
   <meta name="color-scheme" content="dark">
@@ -10,20 +10,38 @@
   <!-- Telegram Mini App SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
   <script>
-    // Initialize Telegram Mini App features when the site is opened inside Telegram.
+    // Telegram-safe bootstrap. All calls are feature-detected so the same build
+    // remains fully usable in normal desktop/mobile browsers.
     (function () {
-      const tg = window.Telegram && window.Telegram.WebApp;
-      if (!tg) return;
-      tg.ready();
-      tg.expand();
-      document.documentElement.classList.add('telegram-mini-app');
-      document.documentElement.style.setProperty('--tg-bg-color', tg.backgroundColor || '#070b16');
-      document.documentElement.style.setProperty('--tg-viewport-height', tg.viewportStableHeight + 'px');
-      tg.onEvent('viewportChanged', function () {
-        if (tg.viewportStableHeight) {
-          document.documentElement.style.setProperty('--tg-viewport-height', tg.viewportStableHeight + 'px');
+      function bootTelegram() {
+        const tg = window.Telegram && window.Telegram.WebApp;
+        if (!tg) return;
+        try {
+          tg.ready();
+          if (tg.expand) tg.expand();
+          if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+          if (tg.setHeaderColor) tg.setHeaderColor('#070b16');
+          if (tg.setBackgroundColor) tg.setBackgroundColor('#070b16');
+          if (tg.setBottomBarColor) tg.setBottomBarColor('#070b16');
+        } catch (e) { console.warn('Telegram WebApp bootstrap:', e); }
+
+        document.documentElement.classList.add('telegram-mini-app');
+        window.PaperCaveTelegram = tg;
+
+        function syncViewport() {
+          const h = tg.viewportStableHeight || tg.viewportHeight || window.innerHeight;
+          if (h) document.documentElement.style.setProperty('--tg-viewport-height', h + 'px');
+          const safe = tg.safeAreaInset || {};
+          document.documentElement.style.setProperty('--tg-safe-top', (safe.top || 0) + 'px');
+          document.documentElement.style.setProperty('--tg-safe-bottom', (safe.bottom || 0) + 'px');
         }
-      });
+        syncViewport();
+        if (tg.onEvent) tg.onEvent('viewportChanged', syncViewport);
+        if (tg.onEvent) tg.onEvent('safeAreaChanged', syncViewport);
+        window.addEventListener('resize', syncViewport, { passive: true });
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootTelegram, { once: true });
+      else bootTelegram();
     })();
   </script>
 
@@ -259,6 +277,53 @@
     .fx-off .orb{ animation:none; }
     .fx-off #bgCanvas{ display:none; }
 
+    /* ---------- Telegram + mobile hardening ---------- */
+    html.telegram-mini-app,
+    html.telegram-mini-app body{ min-height:var(--tg-viewport-height, 100dvh); }
+    html.telegram-mini-app body{ padding-bottom:var(--tg-safe-bottom, 0px); }
+    html.telegram-mini-app .app-shell{ min-height:var(--tg-viewport-height, 100dvh) !important; }
+    html.telegram-mini-app .bg-aura,
+    html.telegram-mini-app #bgCanvas{ opacity:.55; }
+    html.telegram-mini-app .glass-panel{ backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+    html.telegram-mini-app .ad-slot{ display:none !important; }
+    .mobile-tool-nav{ scrollbar-width:none; }
+    .mobile-tool-nav::-webkit-scrollbar{ display:none; }
+    @media (max-width:1023px){
+      .app-shell{ min-height:100dvh; }
+      .app-shell > aside{ position:sticky; top:0; }
+      .app-shell > aside > div:first-child{ width:100%; }
+      #sidebarNav{ padding:.55rem .75rem .7rem; }
+      #sidebarNav .nav-btn{ min-height:44px; justify-content:center; }
+      .main-content, main{ min-width:0; }
+      .glass-panel{ border-radius:18px !important; }
+      .tool-content .btn{ min-height:42px; }
+      .tool-content input,
+      .tool-content select,
+      .tool-content textarea{ font-size:16px; } /* prevents iOS/embedded-WebView zoom */
+    }
+    @media (max-width:640px){
+      header{ padding-left:1rem !important; padding-right:1rem !important; }
+      main{ padding:.75rem !important; }
+      #currentToolTitle{ font-size:1rem; }
+      #currentToolSubtitle{ display:none; }
+      .glass-panel{ padding:1rem !important; }
+      .panel-head{ gap:.65rem; }
+      .thumb-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); max-height:none; }
+      .drop-zone{ padding:1.75rem 1rem !important; }
+      .trim-timeline{ height:72px; }
+      .tl-handle{ width:24px; height:50px; }
+      .pdf-tool-card{ min-height:96px; }
+      .work-status{ left:.65rem; right:.65rem; bottom:calc(.65rem + var(--tg-safe-bottom, 0px)); justify-content:center; }
+    }
+    @media (max-width:1023px) and (orientation:landscape){
+      .app-shell > aside{ position:relative; }
+      #sidebarNav{ overflow-x:auto; }
+    }
+    @media (pointer:coarse){
+      .nav-btn, .btn, .ic-btn, .pdf-tool-card{ -webkit-touch-callout:none; }
+      .ic-btn{ min-width:40px; min-height:40px; display:inline-grid; place-items:center; }
+    }
+
     @media (max-width:1023px){
       .nav-scroll{ display:flex; gap:.5rem; overflow-x:auto; padding-bottom:.25rem; }
       .nav-scroll .nav-btn{ width:auto; white-space:nowrap; flex:0 0 auto; }
@@ -307,7 +372,7 @@
           </div>
         </div>
 
-        <nav class="p-3 lg:space-y-1.5 nav-scroll" id="sidebarNav" aria-label="Tool navigation">
+        <nav class="p-3 lg:space-y-1.5 nav-scroll mobile-tool-nav" id="sidebarNav" aria-label="Tool navigation">
           <button onclick="switchTab('voice')" id="nav-voice" class="nav-btn is-active" aria-label="Voice Transcriber">
             <i class="fa-solid fa-microphone"></i><span>Voice Transcriber</span>
           </button>
@@ -1121,9 +1186,26 @@
   function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    a.target = '_blank';
+    document.body.appendChild(a);
+    try { a.click(); } catch (e) { console.warn('Download click failed:', e); }
+    document.body.removeChild(a);
+
+    // Some embedded WebViews do not honor the download attribute. Opening the
+    // generated object URL gives the user a browser-native save/share surface.
+    setTimeout(() => {
+      const tg = window.PaperCaveTelegram;
+      if (tg && tg.openLink) {
+        try {
+          // Do not navigate automatically: object URLs are local and Telegram
+          // cannot open them reliably. The normal click above remains the primary path.
+        } catch (e) {}
+      }
+      URL.revokeObjectURL(url);
+    }, 10000);
   }
   function formatBytes(bytes, decimals) {
     if (!bytes) return '0 Bytes';
@@ -2632,6 +2714,14 @@
      INIT
      ====================================================================== */
   function init() {
+    // Telegram/mobile capability hints. These do not disable tools; they explain
+    // WebView-specific limitations instead of leaving users with a dead button.
+    const tg = window.PaperCaveTelegram;
+    if (tg && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
+      const subtitle = $('currentToolSubtitle');
+      if (subtitle) subtitle.dataset.telegramReady = '1';
+    }
+
     // Voice + image + media zones
     wireZone($('mediaDropZone'), (files) => { Media.load(files[0]); });
     wireZone($('imgDropZone'), handleImageFiles);
@@ -2643,26 +2733,26 @@
     });
 
     // Buttons
-    $('mergeRunBtn').addEventListener('click', runMerge);
-    $('splitExtractBtn').addEventListener('click', runSplitExtract);
-    $('splitFilesBtn').addEventListener('click', runSplitFiles);
-    $('splitModeSelect').addEventListener('change', (e) => {
+    $('mergeRunBtn')?.addEventListener('click', runMerge);
+    $('splitExtractBtn')?.addEventListener('click', runSplitExtract);
+    $('splitFilesBtn')?.addEventListener('click', runSplitFiles);
+    $('splitModeSelect')?.addEventListener('change', (e) => {
       const fixed = e.target.value === 'fixed';
       $('splitFixedWrap').classList.toggle('hidden', !fixed);
       $('splitRangesWrap').classList.toggle('hidden', fixed);
     });
     qsa('[data-split-tab]').forEach(b => b.addEventListener('click', () => setSplitTab(b.dataset.splitTab)));
-    $('orgApplyBtn').addEventListener('click', runOrganize);
-    $('numRunBtn').addEventListener('click', runPageNumbers);
-    $('wmRunBtn').addEventListener('click', runWatermark);
-    $('cmpRunBtn').addEventListener('click', runCompress);
-    $('jpgRunBtn').addEventListener('click', runToJpg);
-    $('i2pRunBtn').addEventListener('click', runImagesToPdf);
-    $('exRunBtn').addEventListener('click', runExtractImages);
-    $('protRunBtn').addEventListener('click', runProtect);
-    $('unlockRunBtn').addEventListener('click', runUnlock);
-    $('numRunBtn').disabled = false;
-    $('jpgRunBtn').disabled = false;
+    $('orgApplyBtn')?.addEventListener('click', runOrganize);
+    $('numRunBtn')?.addEventListener('click', runPageNumbers);
+    $('wmRunBtn')?.addEventListener('click', runWatermark);
+    $('cmpRunBtn')?.addEventListener('click', runCompress);
+    $('jpgRunBtn')?.addEventListener('click', runToJpg);
+    $('i2pRunBtn')?.addEventListener('click', runImagesToPdf);
+    $('exRunBtn')?.addEventListener('click', runExtractImages);
+    $('protRunBtn')?.addEventListener('click', runProtect);
+    $('unlockRunBtn')?.addEventListener('click', runUnlock);
+    if ($('numRunBtn')) $('numRunBtn').disabled = false;
+    if ($('jpgRunBtn')) $('jpgRunBtn').disabled = false;
 
     // Range fill sync
     [['imgQuality', 'qualityVal', '%'], ['wmOpacity', 'wmOpacityVal', '%'], ['cmpQuality', 'cmpQualityVal', '%'], ['jpgQuality', 'jpgQualityVal', '%']].forEach(([id, outId, suffix]) => {
@@ -2672,13 +2762,13 @@
       el.addEventListener('change', setRangeFill);
     });
     const i2p = $('i2pMargin');
-    i2p.addEventListener('input', () => { setRangeFill(i2p); $('i2pMarginVal').textContent = i2p.value + ' pt'; });
+    i2p?.addEventListener('input', () => { setRangeFill(i2p); if ($('i2pMarginVal')) $('i2pMarginVal').textContent = i2p.value + ' pt'; });
 
-    $('imgQuality').addEventListener('change', processImageCompression);
-    $('imgFormat').addEventListener('change', processImageCompression);
-    $('imgWidthInput').addEventListener('change', () => onDimensionChange('width'));
-    $('imgHeightInput').addEventListener('change', () => onDimensionChange('height'));
-    $('keepAspectCheck').addEventListener('change', () => onDimensionChange('width'));
+    $('imgQuality')?.addEventListener('change', processImageCompression);
+    $('imgFormat')?.addEventListener('change', processImageCompression);
+    $('imgWidthInput')?.addEventListener('change', () => onDimensionChange('width'));
+    $('imgHeightInput')?.addEventListener('change', () => onDimensionChange('height'));
+    $('keepAspectCheck')?.addEventListener('change', () => onDimensionChange('width'));
 
     // FX toggle initial state
     if (!BG.enabled()) BG.setEnabled(false);
